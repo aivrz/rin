@@ -1,11 +1,10 @@
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
 import { HashTag } from "./hashtag";
 import { CommentModal } from "./comment_modal";
 import { useLike } from "../hooks/useLike";
-import { ProfileContext } from "../state/profile";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { siteName } from "../utils/constants";
 
@@ -39,8 +38,7 @@ export function FeedCard({
     comments?: { user: { username: string }, content: string }[],
 }) {
     const { t } = useTranslation();
-    const profile = useContext(ProfileContext);
-    const { LoginModal, setIsOpened } = useLoginModal();
+    const { LoginModal } = useLoginModal();
     // 列表已返回 likes/liked，直接用初始值，避免逐卡片请求
     const like = useLike(id, { count: likes || 0, liked: liked || false, fetch: false });
     const [lightbox, setLightbox] = useState<string | null>(null);

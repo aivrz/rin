@@ -110,7 +110,7 @@ S3_SECRET_ACCESS_KEY=<你的S3SecretAccessKey>
 环境变量复制以下内容，根据自身情况修改变量值：
 
 > [!IMPORTANT]
-> 最后两行环境变量 `SKIP_DEPENDENCY_INSTALL` 和 `UNSTABLE_PRE_BUILD` 为配置 Cloudflare 使用 Bun 进行构建的参数，不要修改
+> 最后两行环境变量 `SKIP_DEPENDENCY_INSTALL` 和 `UNSTABLE_PRE_BUILD` 为配置 Cloudflare 使用 Bun 进行构建的参数。`UNSTABLE_PRE_BUILD` 只需执行依赖安装即可——Bun 在 Pages 构建环境中已预装，旧文档里的 `asdf install bun latest` 会被 GitHub 限流返回 403 导致整个预构建退出 1、构建失败，因此保持为 `bun install`（不要写 asdf 那段）。
 
 ```ini
 NAME=Xeu # 昵称，显示在左上角
@@ -119,7 +119,7 @@ AVATAR=https://avatars.githubusercontent.com/u/36541432 # 头像地址，显示�
 API_URL=https://rin.xeu.life # 服务端域名，可以先使用默认值查看效果，后续部署服务端后再修改
 PAGE_SIZE=5 # 默认分页大小，推荐 5
 SKIP_DEPENDENCY_INSTALL=true
-UNSTABLE_PRE_BUILD=asdf install bun latest && asdf global bun latest && bun i
+UNSTABLE_PRE_BUILD=bun install
 ```
 
 ![1000000660](https://github.com/openRin/Rin/assets/36541432/0fe9276f-e16f-4b8a-87c5-14de582c9a3a)

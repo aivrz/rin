@@ -2,7 +2,7 @@ import Elysia from "elysia";
 import path from "node:path";
 import { and, desc, eq } from "drizzle-orm";
 import type { Env } from "../db/db";
-import { feeds, hashtags } from "../db/schema";
+import { feeds } from "../db/schema";
 import { getDB, getEnv } from "../utils/di";
 import { PublicCache } from "../utils/cache";
 

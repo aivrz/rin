@@ -19,7 +19,7 @@
 | 名称                      | 值                                                          | 描述                   |
 |-------------------------|------------------------------------------------------------|----------------------|
 | SKIP_DEPENDENCY_INSTALL | true                                                       | 跳过默认的 npm install 命令 |
-| UNSTABLE_PRE_BUILD      | asdf install bun latest && asdf global bun latest && bun i | 安装并使用 Bun 进行依赖安装     |
+| UNSTABLE_PRE_BUILD      | bun install                                                | 安装依赖（Bun 在构建环境已预装，无需 asdf） |
 
 ## 后端环境变量列表
 
