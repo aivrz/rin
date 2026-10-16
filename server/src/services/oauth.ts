@@ -4,7 +4,6 @@ import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, oauthIdentities } from "../db/schema";
 import { setup } from "../setup";
-import jwt from "../utils/jwt";
 
 // erphplogin 整合：QQ / 微博 / 微信网页授权 三种 OAuth 登录。
 // 微信网页授权（snsapi_userinfo）需要认证「服务号」资质，订阅号无法使用，未具备时该入口置灰。
@@ -93,7 +92,7 @@ async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, p
 export function OAuthService() {
     return new Elysia({ aot: false })
         .use(setup())
-        .get('/user/:provider', async ({ params, set, cookie, headers, request, env }) => {
+        .get('/user/:provider', async ({ params, set, headers, request, env }) => {
             const provider = params.provider as Provider;
             const cfg = PROVIDERS[provider];
             if (!cfg) return 'Unsupported provider';
@@ -104,8 +103,11 @@ export function OAuthService() {
             const origin = new URL(request.url).origin;
             const redirectUri = `${origin}/user/${provider}/callback`;
             const state = crypto.randomBytes(8).toString('hex');
-            cookie.oauth_state = { value: state, path: '/', maxAge: 600 };
-            cookie.redirect_to = { value: headers.referer ? new URL(headers.referer).origin : origin, path: '/', maxAge: 600 };
+            const refererOrigin = headers.referer ? new URL(headers.referer).origin : origin;
+            set.headers['Set-Cookie'] = [
+                `oauth_state=${state}; Path=/; Max-Age=600; SameSite=Lax`,
+                `redirect_to=${encodeURIComponent(refererOrigin)}; Path=/; Max-Age=600; SameSite=Lax`,
+            ];
             const authUrl = `${cfg.authorize}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${cfg.scope}`;
             set.redirect = provider === 'wechat' ? `${authUrl}#wechat_redirect` : authUrl;
         }, { params: t.Object({ provider: t.String() }) })

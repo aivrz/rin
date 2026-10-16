@@ -1,14 +1,12 @@
 import Elysia, { t } from "elysia";
 import { eq } from "drizzle-orm";
 import crypto from "node:crypto";
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
 import type { DB } from "../_worker";
 import { users, ewsLogs } from "../db/schema";
 import { setup } from "../setup";
-import jwt from "../utils/jwt";
 
 // 关注公众号登录（erphp-weixin-scan 整合）+ 微信消息回调。
-// 流程：用户关注并回复“登录” → Worker 消息回调生成 6 位验证码并回复发给用户 →
+// 流程：用户关注并回复"登录" → Worker 消息回调生成 6 位验证码并回复发给用户 →
 //      用户在前端面板输入验证码 → POST /ews/login 校验 → 建/登账号（JWT cookie）。
 
 const EWS_VALID_MS = 5 * 60 * 1000;
@@ -28,18 +26,29 @@ function verifyWechatSignature(token: string, signature: string, timestamp: stri
     return sha === signature;
 }
 
+// 解析微信推送的 XML（兼容 CDATA）
+function parseWechatXml(xml: string): { FromUserName: string; ToUserName: string; Content: string; Event: string } {
+    const pick = (tag: string): string => {
+        const re = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`, 'i');
+        return (re.exec(xml)?.[1] || '').trim();
+    };
+    return {
+        FromUserName: pick('FromUserName'),
+        ToUserName: pick('ToUserName'),
+        Content: pick('Content'),
+        Event: pick('Event'),
+    };
+}
+
 // 被动回复文本消息（需在 5 秒内响应）
-function passiveTextReply(toUser: string, fromUser: string, content: string): string {
-    const xml = new XMLBuilder({ ignoreAttributes: false }).build({
-        xml: {
-            ToUserName: { '#text': toUser },
-            FromUserName: { '#text': fromUser },
-            CreateTime: Math.floor(Date.now() / 1000),
-            MsgType: { '#text': 'text' },
-            Content: { '#text': content },
-        }
-    });
-    return xml;
+function buildPassiveText(toUser: string, fromUser: string, content: string): string {
+    return `<xml>
+<ToUserName><![CDATA[${toUser}]]></ToUserName>
+<FromUserName><![CDATA[${fromUser}]]></FromUserName>
+<CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
+<MsgType><![CDATA[text]]></MsgType>
+<Content><![CDATA[${content}]]></Content>
+</xml>`;
 }
 
 // 按 weixinid 建或查用户，并签发 JWT 写入 cookie
@@ -72,7 +81,7 @@ export function WechatService() {
         .group('/ews', (group) =>
             group
                 // 前端轮询：按验证码换取登录态
-                .post('/login', async ({ db, jwt, set, env, body: { code } }) => {
+                .post('/login', async ({ db, jwt, set, body: { code } }) => {
                     if (!code) return { status: 0 };
                     const rows = await db.select().from(ewsLogs).where(eq(ewsLogs.sceneId, String(code))).limit(1).all() as any[];
                     const rec = rows[0];
@@ -120,19 +129,13 @@ export function WechatService() {
                 echostr: t.Optional(t.String()),
             })
         })
-        .post('/wechat/callback', async ({ db, env, request, set }) => {
-            const url = new URL(request.url);
-            const q = Object.fromEntries(url.searchParams);
+        .post('/wechat/callback', async ({ db, request, set }) => {
             const rawBody = await request.text();
-            let msg: any = {};
-            try {
-                const parser = new XMLParser();
-                msg = parser.parse(rawBody)?.xml || {};
-            } catch { /* ignore */ }
-            const fromUser = msg.FromUserName?.['#text'] || msg.FromUserName || '';
-            const toUser = msg.ToUserName?.['#text'] || msg.ToUserName || '';
-            const content: string = (msg.Content?.['#text'] || msg.Content || '').toString();
-            const event: string = (msg.Event?.['#text'] || msg.Event || '').toString().toLowerCase();
+            const msg = parseWechatXml(rawBody);
+            const fromUser = msg.FromUserName || '';
+            const toUser = msg.ToUserName || '';
+            const content: string = (msg.Content || '').toString();
+            const event: string = (msg.Event || '').toString().toLowerCase();
             const want = event === 'subscribe' || event === 'scan' || /登录|绑定/.test(content);
             if (want) {
                 const code = genCode();
@@ -145,9 +148,9 @@ export function WechatService() {
                 }
                 const text = `您的登录验证码是 ${code}，5 分钟内有效，请在登录面板的验证码框中输入。`;
                 set.headers['Content-Type'] = 'application/xml; charset=utf-8';
-                return passiveTextReply(fromUser, toUser, text);
+                return buildPassiveText(fromUser, toUser, text);
             }
             set.headers['Content-Type'] = 'application/xml; charset=utf-8';
-            return passiveTextReply(fromUser, toUser, '欢迎关注～回复“登录”获取登录验证码。');
+            return buildPassiveText(fromUser, toUser, '欢迎关注～回复"登录"获取登录验证码。');
         });
 }
