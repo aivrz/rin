@@ -6,7 +6,6 @@ import { HashTag } from "./hashtag";
 import { CommentModal } from "./comment_modal";
 import { useLike } from "../hooks/useLike";
 import { useLoginModal } from "../hooks/useLoginModal";
-import { siteName } from "../utils/constants";
 
 function stripMdImages(text: string): string {
     return text.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -43,6 +42,7 @@ export function FeedCard({
     const like = useLike(id, { count: likes || 0, liked: liked || false, fetch: false });
     const [lightbox, setLightbox] = useState<string | null>(null);
     const [commentOpen, setCommentOpen] = useState(false);
+    const [cmtList, setCmtList] = useState(comments);
 
     const author = user?.username || "匿名";
     const avatar = user?.avatar || "";
@@ -50,7 +50,7 @@ export function FeedCard({
     const full = (content || "").trim();
     const hasMore = full.length > (summary?.length || 0) + 1;
     const imgs = (images || []).slice(0, 9);
-    const showComments = (comments && comments.length > 0) || like.count > 0;
+    const showComments = (cmtList && cmtList.length > 0) || like.count > 0;
 
     const onLike = () => {
         like.toggle();
@@ -69,9 +69,8 @@ export function FeedCard({
                 <div className="pyq-content-right">
                     <div className="pyq-content-right-head">
                         <div className="pyq-content-right-head-title">
-                            <Link href={`/feed/${id}`} className="pyq-content-title-link">{`${siteName} - ${title || author}`}</Link>
+                            <Link href={`/feed/${id}`} className="pyq-content-title-link">{title ? `${author} - ${title}` : author}</Link>
                         </div>
-                        <div className="pyq-content-right-head-author">{author}</div>
                         {(top === 1 || draft === 1 || listed === 0) &&
                             <div className="pyq-content-right-head-ad">
                                 {top === 1 && <span className="pyq-content-right-head-title-ad" style={{ background: "var(--themetm)", color: "var(--theme)" }}>置顶</span>}
@@ -109,12 +108,12 @@ export function FeedCard({
                         <div className="pyq-content-right-time-right">
                             <div className="pyq-content-right-time-right-left">
                                 <span className="pyq-content-right-time-right-left-z" onClick={onLike}>
-                                    <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151" } : undefined} />
+                                    <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151", transform: "scale(1.15)", transition: "transform .15s ease" } : { transform: "scale(1)", transition: "transform .15s ease" }} />
                                     {like.count > 0 ? like.count : ""}
                                 </span>
                                 <button className="pyq-content-right-time-right-left-y" onClick={() => setCommentOpen(true)}>
                                     <i className="ri-message-3-line" />
-                                    {(comments && comments.length > 0) ? comments.length : ""}
+                                    {(cmtList && cmtList.length > 0) ? cmtList.length : ""}
                                 </button>
                             </div>
                         </div>
@@ -129,9 +128,9 @@ export function FeedCard({
                                         <li><span className="pyq-like-text">{like.count} 人点赞</span></li>
                                     </ul>
                                 </div>}
-                            {comments && comments.length > 0 &&
+                            {cmtList && cmtList.length > 0 &&
                                 <ul className="pyq-zanp-pl">
-                                    {comments.map((c, i) => (
+                                    {cmtList.map((c, i) => (
                                         <li key={i}>
                                             <span className="pyq-zanp-pl-n-nc">{c.user.username}</span>
                                             <span className="pyq-zanp-pl-n-huifu">：</span>
@@ -147,7 +146,7 @@ export function FeedCard({
                 <div className="pyq-lightbox" onClick={() => setLightbox(null)}>
                     <img src={lightbox} alt="" referrerPolicy="no-referrer" />
                 </div>}
-            <CommentModal feedId={id} open={commentOpen} onClose={() => setCommentOpen(false)} />
+            <CommentModal feedId={id} open={commentOpen} onClose={() => setCommentOpen(false)} onPosted={(list) => setCmtList(list)} />
             <LoginModal />
         </>
     );

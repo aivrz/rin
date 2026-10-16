@@ -13,7 +13,7 @@ type CommentItem = {
 };
 
 // 仿朋友圈评论弹窗：半透明遮罩 + 底部面板，展示已有评论并提供输入框
-export function CommentModal({ feedId, open, onClose }: { feedId: string; open: boolean; onClose: () => void }) {
+export function CommentModal({ feedId, open, onClose, onPosted }: { feedId: string; open: boolean; onClose: () => void; onPosted?: (list: CommentItem[]) => void }) {
     const { t } = useTranslation();
     const profile = useContext(ProfileContext);
     const { setIsOpened } = useLoginModal();
@@ -44,7 +44,11 @@ export function CommentModal({ feedId, open, onClose }: { feedId: string; open: 
         if (!error) {
             setContent("");
             const { data } = await client.feed.comment({ feed: feedId }).get({ headers: headersWithAuth() });
-            if (data && Array.isArray(data)) setComments(data as CommentItem[]);
+            if (data && Array.isArray(data)) {
+                const list = data as CommentItem[];
+                setComments(list);
+                onPosted?.(list);
+            }
         }
     }
 
