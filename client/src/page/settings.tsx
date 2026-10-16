@@ -22,6 +22,7 @@ export function Settings() {
     const [serverConfig, setServerConfig] = useState<ConfigWrapper>(defaultServerConfigWrapper);
     const ref = useRef(false);
     const { showAlert, AlertUI } = useAlert();
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
 
     useEffect(() => {
@@ -99,6 +100,17 @@ export function Settings() {
                             <ItemSwitch title={t('settings.counter.enable.title')} description={t('settings.counter.enable.desc')} type="client" configKey="counter.enabled" />
                             <ItemTitle title="背景音乐" />
                             <ItemInput title="音乐播放列表" description='JSON：{"name":"歌单名","list":[{"name":"歌名","artist":"歌手","url":"音频地址","cover":"封面图"}]}' type="client" configKey="music" configKeyTitle="Music JSON" />
+                            <ItemTitle title="第三方登录" />
+                            <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
+                            <ItemInput title="QQ AppKey" description="QQ 互联应用 AppKey（即 AppSecret）" type="server" configKey="qq_appkey" configKeyTitle="QQ AppKey" />
+                            <ItemInput title="微博 AppKey" description={`在 https://open.weibo.com 创建应用；回调地址填 ${origin}/user/weibo/callback`} type="server" configKey="weibo_appkey" configKeyTitle="微博 AppKey" />
+                            <ItemInput title="微博 AppSecret" description="微博开放平台应用 AppSecret" type="server" configKey="weibo_appsecret" configKeyTitle="微博 AppSecret" />
+                            <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 配置网页授权域名；回调 ${origin}/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
+                            <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
+                            <ItemInput title="公众号扫码 AppID" description="erphp-weixin-scan 插件对接：公众号 AppID" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
+                            <ItemInput title="公众号扫码 AppSecret" description="erphp-weixin-scan 插件对接：公众号 AppSecret" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
+                            <ItemInput title="公众号扫码 Token" description="与 erphp-weixin-scan 插件一致的 Token（消息回调签名校验用）" type="server" configKey="ews_token" configKeyTitle="EWS Token" />
+                            <ItemInput title="公众号扫码二维码地址" description="erphp-weixin-scan 插件生成的关注二维码图片地址，填到 ews_qrcode_url" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
                             <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
                             <ItemInput title={t('settings.favicon.title')} description={t('settings.favicon.desc')} type="client" configKey="favicon" configKeyTitle="Favicon" />
                             <ItemInput title={t('settings.footer.title')} description={t('settings.footer.desc')} type="client" configKey="footer" configKeyTitle="Footer HTML" />

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, oauthIdentities } from "../db/schema";
 import { setup } from "../setup";
+import { ServerConfig } from "../utils/cache";
 
 // erphplogin 整合：QQ / 微博 / 微信网页授权 三种 OAuth 登录。
 // 微信网页授权（snsapi_userinfo）需要认证「服务号」资质，订阅号无法使用，未具备时该入口置灰。
@@ -18,6 +19,8 @@ const PROVIDERS: Record<Provider, {
     scope: string;
     clientIdEnv: string;
     secretEnv: string;
+    clientIdKey: string;
+    secretKey: string;
 }> = {
     qq: {
         authorize: 'https://graph.qq.com/oauth2.0/authorize',
@@ -27,6 +30,8 @@ const PROVIDERS: Record<Provider, {
         scope: 'get_user_info',
         clientIdEnv: 'QQ_APPID',
         secretEnv: 'QQ_APPKEY',
+        clientIdKey: 'qq_appid',
+        secretKey: 'qq_appkey',
     },
     weibo: {
         authorize: 'https://api.weibo.com/oauth2/authorize',
@@ -35,6 +40,8 @@ const PROVIDERS: Record<Provider, {
         scope: 'email',
         clientIdEnv: 'WEIBO_APPKEY',
         secretEnv: 'WEIBO_APPSECRET',
+        clientIdKey: 'weibo_appkey',
+        secretKey: 'weibo_appsecret',
     },
     wechat: {
         authorize: 'https://open.weixin.qq.com/connect/oauth2/authorize',
@@ -43,8 +50,18 @@ const PROVIDERS: Record<Provider, {
         scope: 'snsapi_userinfo',
         clientIdEnv: 'WECHAT_APPID',
         secretEnv: 'WECHAT_APPSECRET',
+        clientIdKey: 'wechat_appid',
+        secretKey: 'wechat_appsecret',
     },
 };
+
+// 凭证读取：后端设置（server 配置）优先，环境变量兜底，兼容旧部署。
+async function getCreds(provider: Provider, envObj: any): Promise<{ clientId: string; clientSecret: string }> {
+    const cfg = PROVIDERS[provider];
+    const clientId = (await ServerConfig().get(cfg.clientIdKey)) || envObj[cfg.clientIdEnv];
+    const clientSecret = (await ServerConfig().get(cfg.secretKey)) || envObj[cfg.secretEnv];
+    return { clientId, clientSecret };
+}
 
 interface OAuthProfile { openid: string; username: string; avatar: string; }
 
@@ -103,8 +120,7 @@ export function OAuthService() {
             const cfg = PROVIDERS[provider];
             if (!cfg) return 'Unsupported provider';
             const envObj: any = env;
-            const clientId = envObj[cfg.clientIdEnv];
-            const clientSecret = envObj[cfg.secretEnv];
+            const { clientId, clientSecret } = await getCreds(provider, envObj);
             if (!clientId || !clientSecret) return 'Provider not configured';
             const origin = new URL(request.url).origin;
             const redirectUri = `${origin}/user/${provider}/callback`;
@@ -125,8 +141,7 @@ export function OAuthService() {
             if (!cfg) { set.status = 400; return 'Unsupported provider'; }
             if (cookie.oauth_state?.value !== query.state) { set.status = 403; return 'State mismatch'; }
             const envObj: any = env;
-            const clientId = envObj[cfg.clientIdEnv];
-            const clientSecret = envObj[cfg.secretEnv];
+            const { clientId, clientSecret } = await getCreds(provider, envObj);
             const origin = new URL(request.url).origin;
             const redirectUri = `${origin}/user/${provider}/callback`;
             let profile: OAuthProfile;

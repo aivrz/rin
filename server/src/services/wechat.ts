@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, ewsLogs } from "../db/schema";
 import { setup } from "../setup";
+import { ServerConfig } from "../utils/cache";
 
 // 关注公众号登录（erphp-weixin-scan 整合）+ 微信消息回调。
 // 流程：用户关注并回复"登录" → Worker 消息回调生成 6 位验证码并回复发给用户 →
@@ -110,14 +111,16 @@ export function WechatService() {
                     body: t.Object({ code: t.String() })
                 })
                 // 前端获取关注二维码地址（公开，仅返回图片 URL）
-                .get('/qrcode', ({ env }) => {
-                    return { qrcodeUrl: env.EWS_QRCODE_URL || '' };
+                .get('/qrcode', async ({ env }) => {
+                    const qrcodeUrl = (await ServerConfig().get('ews_qrcode_url')) || env.EWS_QRCODE_URL || '';
+                    return { qrcodeUrl };
                 })
         )
         // 微信消息回调（GET 校验签名回显 echostr；POST 处理用户回复）
-        .get('/wechat/callback', ({ env, query }) => {
+        .get('/wechat/callback', async ({ env, query }) => {
             const { signature, timestamp, nonce, echostr } = query as any;
-            if (!verifyWechatSignature(env.EWS_TOKEN || '', signature || '', timestamp || '', nonce || '')) {
+            const token = (await ServerConfig().get('ews_token')) || env.EWS_TOKEN || '';
+            if (!verifyWechatSignature(token, signature || '', timestamp || '', nonce || '')) {
                 return 'invalid signature';
             }
             return echostr || 'ok';
