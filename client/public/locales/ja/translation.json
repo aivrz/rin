@@ -31,6 +31,12 @@
       "title": "トップ解除"
     }
   },
+  "feed": {
+    "load_more": "もっと読み込む",
+    "loading_more": "読み込み中…",
+    "no_more": "これ以上ありません",
+    "empty": "まだ投稿がありません"
+  },
   "avatar": {
     "url": "アバターURL"
   },

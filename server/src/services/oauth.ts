@@ -110,10 +110,12 @@ export function OAuthService() {
             const redirectUri = `${origin}/user/${provider}/callback`;
             const state = crypto.randomBytes(8).toString('hex');
             const refererOrigin = headers.referer ? new URL(headers.referer).origin : origin;
+            // 存原始 origin（与 user.ts 的 GitHub 流程保持一致），不要在 cookie 里编码，
+            // 否则回调读取时会被二次解码导致回跳 URL 错乱。
             set.headers['Set-Cookie'] = [
                 `oauth_state=${state}; Path=/; Max-Age=600; SameSite=Lax`,
-                `redirect_to=${encodeURIComponent(refererOrigin)}; Path=/; Max-Age=600; SameSite=Lax`,
-            ].join(', ');
+                `redirect_to=${refererOrigin}; Path=/; Max-Age=600; SameSite=Lax`,
+            ];
             const authUrl = `${cfg.authorize}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${cfg.scope}`;
             set.redirect = provider === 'wechat' ? `${authUrl}#wechat_redirect` : authUrl;
         }, { params: t.Object({ provider: t.String() }) })

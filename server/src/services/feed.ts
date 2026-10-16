@@ -1,9 +1,9 @@
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { XMLParser } from "fast-xml-parser";
 import html2md from 'html-to-md';
 import type { DB } from "../_worker";
-import { feeds, visits } from "../db/schema";
+import { comments, feeds, likes, visits } from "../db/schema";
 import { setup } from "../setup";
 import { ClientConfig, PublicCache } from "../utils/cache";
 import { getDB } from "../utils/di";
@@ -16,7 +16,7 @@ export function FeedService() {
         .use(setup())
         .group('/feed', (group) =>
             group
-                .get('/', async ({ admin, set, query: { page, limit, type } }) => {
+                .get('/', async ({ admin, set, uid, query: { page, limit, type } }) => {
                     if ((type === 'draft' || type === 'unlisted') && !admin) {
                         set.status = 403;
                         return 'Permission denied';
@@ -27,6 +27,16 @@ export function FeedService() {
                     const cacheKey = `feeds_${type}_${page_num}_${limit_num}`;
                     const cached = await cache.get(cacheKey);
                     if (cached) {
+                        // liked 与用户相关，不能缓存进共享数据；命中后按当前 uid 重新计算
+                        if (uid) {
+                            const ids = (cached.data as { id: number }[]).map((f) => f.id);
+                            const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+                            const likedSet = new Set(my.map(r => r.feedId));
+                            return {
+                                ...cached,
+                                data: (cached.data as { id: number; liked?: boolean }[]).map((f) => ({ ...f, liked: likedSet.has(f.id) }))
+                            };
+                        }
                         return cached;
                     }
                     const where = type === 'draft' ? eq(feeds.draft, 1) : type === 'unlisted' ? and(eq(feeds.draft, 0), eq(feeds.listed, 0)) : and(eq(feeds.draft, 0), eq(feeds.listed, 1));
@@ -38,7 +48,7 @@ export function FeedService() {
                             hasNext: false
                         }
                     }
-                    const feed_list = (await db.query.feeds.findMany({
+                    const raw_list = (await db.query.feeds.findMany({
                         where: where,
                         columns: admin ? undefined : {
                             draft: false,
@@ -70,6 +80,17 @@ export function FeedService() {
                             ...other
                         }
                     });
+                    // 批量聚合点赞数 + 当前用户点赞态，避免前端逐卡片请求
+                    const ids = raw_list.map(f => f.id);
+                    const likeAgg = await db.select({ feedId: likes.feedId, c: count() }).from(likes).where(inArray(likes.feedId, ids)).groupBy(likes.feedId);
+                    const likeMap = new Map<number, number>();
+                    for (const r of likeAgg) likeMap.set(r.feedId, r.c);
+                    let likedSet: Set<number> | null = null;
+                    if (uid) {
+                        const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+                        likedSet = new Set(my.map(r => r.feedId));
+                    }
+                    const feed_list = raw_list.map(f => ({ ...f, likes: likeMap.get(f.id) ?? 0 }));
                     let hasNext = false
                     if (feed_list.length === limit_num + 1) {
                         feed_list.pop();
@@ -82,6 +103,10 @@ export function FeedService() {
                     }
                     if (type === undefined || type === 'normal' || type === '')
                         await cache.set(cacheKey, data);
+                    // liked 与用户相关，仅按当前 uid 附加到返回结果，不写入缓存
+                    if (uid && likedSet) {
+                        data.data = (data.data as { id: number; liked?: boolean }[]).map((f) => ({ ...f, liked: likedSet.has(f.id) }));
+                    }
                     return data
                 }, {
                     query: t.Object({
@@ -214,7 +239,30 @@ export function FeedService() {
                         pv,
                         uv
                     };
-                    return data;
+                    // 近期评论 + 评论总数（供 pyq 卡片/文章页评论区渲染）
+                    const comment_list = await db.query.comments.findMany({
+                        where: eq(comments.feedId, feed.id),
+                        columns: { feedId: false, userId: false },
+                        with: {
+                            user: {
+                                columns: { id: true, username: true, avatar: true }
+                            }
+                        },
+                        orderBy: [desc(comments.createdAt)],
+                        limit: 5
+                    });
+                    const comment_count = await db.select({ count: count() }).from(comments).where(eq(comments.feedId, feed.id));
+                    const likeAgg = await db.select({ c: count() }).from(likes).where(eq(likes.feedId, feed.id));
+                    const liked = uid ? !!(await db.query.likes.findFirst({
+                        where: and(eq(likes.feedId, feed.id), eq(likes.userId, uid))
+                    })) : false;
+                    return {
+                        ...data,
+                        comments: comment_list,
+                        commentCount: comment_count[0]?.count ?? 0,
+                        likes: likeAgg[0]?.c ?? 0,
+                        liked
+                    };
                 })
                 .post('/:id', async ({
                     admin,
@@ -293,6 +341,36 @@ export function FeedService() {
                         top: t.Integer()
                     })
                 })
+                // 点赞（erphplogin 风格社交互动）：GET 返回总数与当前用户是否已赞，POST 切换点赞态
+                .get('/:id/like', async ({ params: { id }, uid }) => {
+                    const feed = await db.query.feeds.findFirst({
+                        where: or(eq(feeds.id, parseInt(id) || 0), eq(feeds.alias, id))
+                    });
+                    if (!feed) return { count: 0, liked: false };
+                    const feedId = feed.id;
+                    const c = await db.select({ c: count() }).from(likes).where(eq(likes.feedId, feedId));
+                    const liked = uid ? !!(await db.query.likes.findFirst({
+                        where: and(eq(likes.feedId, feedId), eq(likes.userId, uid))
+                    })) : false;
+                    return { count: c[0]?.c ?? 0, liked };
+                })
+                .post('/:id/like', async ({ params: { id }, uid, set }) => {
+                    if (!uid) { set.status = 401; return 'Unauthorized'; }
+                    const feed = await db.query.feeds.findFirst({
+                        where: or(eq(feeds.id, parseInt(id) || 0), eq(feeds.alias, id))
+                    });
+                    if (!feed) { set.status = 404; return 'Not found'; }
+                    const feedId = feed.id;
+                    const existing = await db.query.likes.findFirst({
+                        where: and(eq(likes.feedId, feedId), eq(likes.userId, uid))
+                    });
+                    if (existing) {
+                        await db.delete(likes).where(eq(likes.id, existing.id));
+                        return { liked: false };
+                    }
+                    await db.insert(likes).values({ feedId, userId: uid });
+                    return { liked: true };
+                })
                 .delete('/:id', async ({ admin, set, uid, params: { id } }) => {
                     const id_num = parseInt(id);
                     const feed = await db.query.feeds.findFirst({
@@ -311,7 +389,7 @@ export function FeedService() {
                     return 'Deleted';
                 })
         )
-        .get('/search/:keyword', async ({ admin, params: { keyword }, query: { page, limit } }) => {
+        .get('/search/:keyword', async ({ admin, uid, params: { keyword }, query: { page, limit } }) => {
             keyword = decodeURI(keyword);
             const cache = PublicCache();
             const page_num = (page ? page > 0 ? page : 1 : 1) - 1;
@@ -329,7 +407,7 @@ export function FeedService() {
                     like(feeds.content, searchKeyword),
                     like(feeds.summary, searchKeyword),
                     like(feeds.alias, searchKeyword));
-            const feed_list = (await cache.getOrSet(cacheKey, () => db.query.feeds.findMany({
+            const raw_list = (await cache.getOrSet(cacheKey, () => db.query.feeds.findMany({
                 where: admin ? where : and(where, eq(feeds.draft, 0)),
                 columns: admin ? undefined : {
                     draft: false,
@@ -356,6 +434,17 @@ export function FeedService() {
                     ...other
                 }
             });
+            // 聚合点赞数 + 当前用户点赞态
+            const ids = raw_list.map(f => f.id);
+            const likeAgg = await db.select({ feedId: likes.feedId, c: count() }).from(likes).where(inArray(likes.feedId, ids)).groupBy(likes.feedId);
+            const likeMap = new Map<number, number>();
+            for (const r of likeAgg) likeMap.set(r.feedId, r.c);
+            let likedSet: Set<number> | null = null;
+            if (uid) {
+                const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+                likedSet = new Set(my.map(r => r.feedId));
+            }
+            const feed_list = raw_list.map(f => ({ ...f, likes: likeMap.get(f.id) ?? 0, liked: likedSet ? likedSet.has(f.id) : false }));
             if (feed_list.length <= page_num * limit_num) {
                 return {
                     size: feed_list.length,

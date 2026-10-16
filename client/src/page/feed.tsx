@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet";
 import { useTranslation } from "react-i18next";
 import ReactModal from "react-modal";
@@ -8,6 +8,9 @@ import { useAlert, useConfirm } from "../components/dialog";
 import { HashTag } from "../components/hashtag";
 import { Waiting } from "../components/loading";
 import { Markdown } from "../components/markdown";
+import { FeedCard } from "../components/feed_card";
+import { PyqCoverHeader } from "../components/pyq_cover";
+import { PyqMusicCard, PyqVideoEmbed, extractMedia } from "../components/pyq_media";
 import { client } from "../main";
 import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
@@ -17,6 +20,8 @@ import { timeago } from "../utils/timeago";
 import { Button } from "../components/button";
 import { Tips } from "../components/tips";
 import { useLoginModal } from "../hooks/useLoginModal";
+import { useLike } from "../hooks/useLike";
+import { Heart } from "lucide-react";
 import mermaid from "mermaid";
 
 type Feed = {
@@ -37,9 +42,17 @@ type Feed = {
   };
   pv: number;
   uv: number;
+  top: number;
+  comments?: {
+    id: number;
+    content: string;
+    createdAt: Date;
+    user: { id: number; username: string; avatar: string | null };
+  }[];
+  commentCount?: number;
 };
 
-export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Element, clean: (id: string) => void }) {
+export function FeedPage({ id, _TOC, clean }: { id: string, _TOC: () => JSX.Element, clean: (id: string) => void }) {
   const { t } = useTranslation();
   const profile = useContext(ProfileContext);
   const [feed, setFeed] = useState<Feed>();
@@ -52,8 +65,12 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
   const [top, setTop] = useState<number>(0);
   const config = useContext(ClientConfigContext);
   const counterEnabled = config.get<boolean>('counter.enabled');
+  const { LoginModal: FeedLoginModal, setIsOpened: setIsLogin } = useLoginModal();
+  // 详情接口已返回 likes/liked，直接用初始值，无需额外请求
+  const like = useLike(id, { count: feed?.likes ?? 0, liked: !!feed?.liked, fetch: false });
+  const onLike = () => { if (!profile) { setIsLogin(true); return; } like.toggle(); };
+  const media = useMemo(() => feed ? extractMedia(feed.content) : { media: [], content: "" }, [feed]);
   function deleteFeed() {
-    // Confirm
     showConfirm(
       t("article.delete.title"),
       t("article.delete.confirm"),
@@ -77,7 +94,6 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
   function topFeed() {
     const isUnTop = !(top > 0)
     const topNew = isUnTop ? 1 : 0;
-    // Confirm
     showConfirm(
       isUnTop ? t("article.top.title") : t("article.untop.title"),
       isUnTop ? t("article.top.confirm") : t("article.untop.confirm"),
@@ -117,7 +133,6 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
           setTimeout(() => {
             setFeed(data);
             setTop(data.top);
-            // Extract head image
             const img_reg = /!\[.*?\]\((.*?)\)/;
             const img_match = img_reg.exec(data.content);
             if (img_match) {
@@ -137,7 +152,7 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
     mermaid.run({
       suppressErrors: true,
       nodes: document.querySelectorAll("pre.mermaid_default")
-    }).then(()=>{
+    }).then(() => {
       mermaid.initialize({
         startOnLoad: false,
         theme: "dark",
@@ -182,142 +197,88 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
           />
         </Helmet>
       )}
-      <div className="w-full flex flex-row justify-center ani-show">
+      <main className="pyq-main ani-show">
+        <PyqCoverHeader />
         {error && (
-          <>
-            <div className="flex flex-col wauto rounded-2xl bg-w m-2 p-6 items-center justify-center space-y-2">
-              <h1 className="text-xl font-bold t-primary">{error}</h1>
-              {error === "Not found" && id === "about" && (
-                <Tips value={t("about.notfound")} />
-              )}
-              <Button
-                title={t("index.back")}
-                onClick={() => (window.location.href = "/")}
-              />
-            </div>
-          </>
+          <div className="pyq-card" style={{ textAlign: "center" }}>
+            <h1 className="t-primary" style={{ fontSize: 20, fontWeight: 700 }}>{error}</h1>
+            {error === "Not found" && id === "about" && (
+              <Tips value={t("about.notfound")} />
+            )}
+            <Button title={t("index.back")} onClick={() => (window.location.href = "/")} />
+          </div>
         )}
         {feed && !error && (
           <>
-            <div className="xl:w-64" />
-            <main className="w-full max-w-[640px] mx-auto">
-              <article
-                className="rounded-2xl bg-w m-2 px-6 py-4"
-                aria-label={feed.title ?? "Unnamed"}
-              >
-                <div className="flex justify-between">
-                  <div>
-                    <div className="mt-1 mb-1 flex gap-1">
-                      <p
-                        className="text-gray-400 text-[12px]"
-                        title={new Date(feed.createdAt).toLocaleString()}
-                      >
-                        {t("feed_card.published$time", {
-                          time: timeago(feed.createdAt),
-                        })}
-                      </p>
-
-                      {feed.createdAt !== feed.updatedAt && (
-                        <p
-                          className="text-gray-400 text-[12px]"
-                          title={new Date(feed.updatedAt).toLocaleString()}
-                        >
-                          {t("feed_card.updated$time", {
-                            time: timeago(feed.updatedAt),
-                          })}
-                        </p>
-                      )}
-                    </div>
-                    {counterEnabled && <p className='text-[12px] text-gray-400 font-normal link-line'>
-                      <span> {t("count.pv")} </span>
-                      <span>
-                        {feed.pv}
-                      </span>
-                      <span> |</span>
-                      <span> {t("count.uv")} </span>
-                      <span>
-                        {feed.uv}
-                      </span>
-                    </p>}
-                    <div className="flex flex-row items-center">
-                      <h1 className="text-2xl font-bold t-primary break-all">
-                        {feed.title}
-                      </h1>
-                      <div className="flex-1 w-0" />
-                    </div>
+            <article className="pyq-post" aria-label={feed.title ?? "Unnamed"}>
+              <div className="pyq-post-head">
+                {profile?.permission && (
+                  <div className="pyq-post-admin">
+                    <button aria-label={top > 0 ? t("untop.title") : t("top.title")} onClick={topFeed}>
+                      <i className="ri-skip-up-line" />
+                    </button>
+                    <Link aria-label={t("edit")} href={`/writing/${feed.id}`}>
+                      <i className="ri-edit-2-line" />
+                    </Link>
+                    <button aria-label={t("delete.title")} onClick={deleteFeed}>
+                      <i className="ri-delete-bin-7-line" style={{ color: "#fa5151" }} />
+                    </button>
                   </div>
-                  <div className="pt-2">
-                    {profile?.permission && (
-                      <div className="flex gap-2">
-                        <button
-                          aria-label={top > 0 ? t("untop.title") : t("top.title")}
-                          onClick={topFeed}
-                          className={`flex-1 flex flex-col items-end justify-center px-2 py rounded-full transition ${top > 0 ? "bg-theme text-white hover:bg-theme-hover active:bg-theme-active" : "bg-secondary bg-button dark:text-neutral-400"}`}
-                        >
-                          <i className="ri-skip-up-line" />
-                        </button>
-                        <Link
-                          aria-label={t("edit")}
-                          href={`/writing/${feed.id}`}
-                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary bg-button rounded-full transition"
-                        >
-                          <i className="ri-edit-2-line dark:text-neutral-400" />
-                        </Link>
-                        <button
-                          aria-label={t("delete.title")}
-                          onClick={deleteFeed}
-                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary bg-button rounded-full transition"
-                        >
-                          <i className="ri-delete-bin-7-line text-red-500" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <Markdown content={feed.content} />
-                <div className="mt-6 flex flex-col gap-2">
-                  {feed.hashtags.length > 0 && (
-                    <div className="flex flex-row flex-wrap gap-x-2">
-                      {feed.hashtags.map(({ name }, index) => (
-                        <HashTag key={index} name={name} />
-                      ))}
-                    </div>
+                )}
+                <h1 className="pyq-post-title">{feed.title}</h1>
+                <div className="pyq-post-meta">
+                  <img src={feed.user.avatar || "/avatar.png"} alt="" referrerPolicy="no-referrer" />
+                  <span>{feed.user.username}</span>
+                  <span title={new Date(feed.createdAt).toLocaleString()}>
+                    {timeago(feed.createdAt)}
+                  </span>
+                  {feed.createdAt !== feed.updatedAt && (
+                    <span title={new Date(feed.updatedAt).toLocaleString()}>
+                      ({t("feed_card.updated$time", { time: timeago(feed.updatedAt) })})
+                    </span>
                   )}
-                  <div className="flex flex-row items-center">
-                    <img
-                      src={feed.user.avatar || "/avatar.png"}
-                      className="w-8 h-8 rounded-full"
-                    />
-                    <div className="ml-2">
-                      <span className="text-gray-400 text-sm cursor-default">
-                        {feed.user.username}
-                      </span>
-                    </div>
-                  </div>
+                  {counterEnabled && (
+                    <span>· {t("count.pv")} {feed.pv} | {t("count.uv")} {feed.uv}</span>
+                  )}
                 </div>
-              </article>
-              {feed && <Comments id={`${feed.id}`} />}
-              <div className="h-16" />
-            </main>
-            <div className="w-80 hidden lg:block relative">
-              <div
-                className={`ml-2 start-0 end-0 top-[5.5rem] sticky`}
-              >
-                <TOC />
               </div>
-            </div>
+              {media.media.map((m, i) => (
+                m.type === "music"
+                  ? <PyqMusicCard key={i} url={m.url} title={feed.title || undefined} />
+                  : <PyqVideoEmbed key={i} url={m.url} />
+              ))}
+              <Markdown content={media.content} />
+              {feed.hashtags.length > 0 && (
+                <div className="flex flex-row flex-wrap gap-2" style={{ marginTop: 14 }}>
+                  {feed.hashtags.map(({ name }, index) => (
+                    <HashTag key={index} name={name} />
+                  ))}
+                </div>
+              )}
+              <div className="pyq-post-likebar">
+                <button className={like.liked ? "pyq-post-like on" : "pyq-post-like"} onClick={onLike}>
+                  <Heart fill={like.liked ? "#fa5151" : "none"} style={like.liked ? { color: "#fa5151" } : undefined} />
+                  <span>{like.liked ? "已赞" : "赞"}</span>
+                  {like.count > 0 && <span className="pyq-post-like-count">{like.count}</span>}
+                </button>
+              </div>
+            </article>
+            {feed && <Comments id={`${feed.id}`} initial={feed.comments || []} />}
+            <RelatedArticles id={feed.id} hashtags={feed.hashtags} />
+            <div className="h-16" />
           </>
         )}
-      </div>
+        <div className="pyq-copyright">© {new Date().getFullYear()} {process.env.NAME}</div>
+      </main>
       <AlertUI />
       <ConfirmUI />
+      <FeedLoginModal />
     </Waiting>
   );
 }
 
 export function TOCHeader({ TOC }: { TOC: () => JSX.Element }) {
   const [isOpened, setIsOpened] = useState(false);
-
   return (
     <div className="lg:hidden">
       <button
@@ -404,35 +365,26 @@ function CommentInput({
       });
   }
   return (
-    <div className="w-full rounded-2xl bg-w t-primary m-2 p-6 items-end flex flex-col">
-      <div className="flex flex-col w-full items-start mb-4">
-        <label htmlFor="comment">{t("comment.title")}</label>
-      </div>
+    <div className="pyq-comment-input">
+      <label htmlFor="comment">{t("comment.title")}</label>
       {profile ? (<>
         <textarea
           id="comment"
           placeholder={t("comment.placeholder.title")}
-          className="bg-w w-full h-24 rounded-lg"
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
-        <button
-          className="mt-4 bg-theme text-white px-4 py-2 rounded-full"
-          onClick={submit}
-        >
+        <button className="pyq-btn-theme" onClick={submit}>
           {t("comment.submit")}
         </button>
       </>) : (
-        <div className="flex flex-row w-full items-center justify-center space-x-2 py-12">
-          <button
-            className="mt-2 bg-theme text-white px-4 py-2 rounded-full"
-            onClick={() => setIsOpened(true)}
-          >
+        <div style={{ textAlign: "center", padding: "12px 0" }}>
+          <button className="pyq-btn-theme" onClick={() => setIsOpened(true)}>
             {t("login.required")}
           </button>
         </div>
       )}
-      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+      {error && <p style={{ color: "#fa5151", fontSize: 13, marginTop: 8 }}>{error}</p>}
       <AlertUI />
       <LoginModal />
     </div>
@@ -443,18 +395,18 @@ type Comment = {
   id: number;
   content: string;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
   user: {
     id: number;
     username: string;
     avatar: string | null;
-    permission: number | null;
+    permission?: number | null;
   };
 };
 
-function Comments({ id }: { id: string }) {
+function Comments({ id, initial }: { id: string, initial: Comment[] }) {
   const config = useContext(ClientConfigContext);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[]>(initial);
   const [error, setError] = useState<string>();
   const ref = useRef("");
   const { t } = useTranslation();
@@ -479,25 +431,19 @@ function Comments({ id }: { id: string }) {
     ref.current = id;
   }, [id]);
   return (
-    <>
+    <div className="pyq-comments">
       {config.get<boolean>('comment.enabled') &&
-        <div className="m-2 flex flex-col justify-center items-center">
+        <>
           <CommentInput id={id} onRefresh={loadComments} />
           {error && (
-            <>
-              <div className="flex flex-col wauto rounded-2xl bg-w t-primary m-2 p-6 items-center justify-center">
-                <h1 className="text-xl font-bold t-primary">{error}</h1>
-                <button
-                  className="mt-2 bg-theme text-white px-4 py-2 rounded-full"
-                  onClick={loadComments}
-                >
-                  {t("reload")}
-                </button>
-              </div>
-            </>
+            <div className="pyq-card" style={{ textAlign: "center" }}>
+              <h1 className="t-primary" style={{ fontSize: 18, fontWeight: 700 }}>{error}</h1>
+              <button className="pyq-btn-theme" onClick={loadComments}>{t("reload")}</button>
+            </div>
           )}
           {comments.length > 0 && (
-            <div className="w-full">
+            <div>
+              <div className="pyq-page-title">评论 {comments.length}</div>
               {comments.map((comment) => (
                 <CommentItem
                   key={comment.id}
@@ -507,9 +453,9 @@ function Comments({ id }: { id: string }) {
               ))}
             </div>
           )}
-        </div>
+        </>
       }
-    </>
+    </div>
   );
 }
 
@@ -546,51 +492,63 @@ function CommentItem({
       })
   }
   return (
-    <div className="flex flex-row items-start rounded-xl mt-2">
-      <img
-        src={comment.user.avatar || ""}
-        className="w-8 h-8 rounded-full mt-4"
-      />
-      <div className="flex flex-col flex-1 w-0 ml-2 bg-w rounded-xl p-4">
-        <div className="flex flex-row">
-          <span className="t-primary text-base font-bold">
-            {comment.user.username}
-          </span>
-          <div className="flex-1 w-0" />
-          <span
-            title={new Date(comment.createdAt).toLocaleString()}
-            className="text-gray-400 text-sm"
-          >
+    <div className="pyq-comment-item">
+      <img src={comment.user.avatar || ""} alt="" referrerPolicy="no-referrer" />
+      <div className="pyq-comment-body">
+        <div>
+          <span className="pyq-comment-name">{comment.user.username}</span>
+          <span className="pyq-comment-time" title={new Date(comment.createdAt).toLocaleString()}>
             {timeago(comment.createdAt)}
           </span>
         </div>
-        <p className="t-primary break-words">{comment.content}</p>
-        <div className="flex flex-row justify-end">
-          {(profile?.permission || profile?.id == comment.user.id) && (
-            <Popup
-              arrow={false}
-              trigger={
-                <button className="px-2 py bg-secondary rounded-full">
-                  <i className="ri-more-fill t-secondary"></i>
-                </button>
-              }
-              position="left center"
-            >
-              <div className="flex flex-row self-end mr-2">
-                <button
-                  onClick={deleteComment}
-                  aria-label={t("delete.comment.title")}
-                  className="px-2 py bg-secondary rounded-full"
-                >
-                  <i className="ri-delete-bin-2-line t-secondary"></i>
-                </button>
-              </div>
-            </Popup>
-          )}
-        </div>
+        <p className="pyq-comment-content">{comment.content}</p>
       </div>
+      {(profile?.permission || profile?.id == comment.user.id) && (
+        <Popup
+          arrow={false}
+          trigger={
+            <button className="px-2 py bg-secondary rounded-full" style={{ flex: "0 0 auto" }}>
+              <i className="ri-more-fill t-secondary"></i>
+            </button>
+          }
+          position="left center"
+        >
+          <div className="flex flex-row self-end mr-2">
+            <button
+              onClick={deleteComment}
+              aria-label={t("delete.comment.title")}
+              className="px-2 py bg-secondary rounded-full"
+            >
+              <i className="ri-delete-bin-2-line t-secondary"></i>
+            </button>
+          </div>
+        </Popup>
+      )}
       <ConfirmUI />
       <AlertUI />
+    </div>
+  );
+}
+
+function RelatedArticles({ id, hashtags }: { id: number, hashtags: { id: number, name: string }[] }) {
+  const [list, setList] = useState<any[]>([]);
+  useEffect(() => {
+    client.feed.index.get({
+      query: { page: 1, limit: 8, type: 'normal' },
+      headers: headersWithAuth()
+    }).then(({ data }) => {
+      if (data && typeof data !== 'string') {
+        setList((data.data || []).filter((f: any) => f.id !== id).slice(0, 4));
+      }
+    });
+  }, [id]);
+  if (!list.length) return null;
+  return (
+    <div>
+      <div className="pyq-page-title">相关文章</div>
+      {list.map(({ id, ...feed }: any) => (
+        <FeedCard key={id} id={id} {...feed} />
+      ))}
     </div>
   );
 }

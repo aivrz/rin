@@ -28,9 +28,7 @@ export function PinnedPage() {
             <Helmet><title>{`${t('pinned')} - ${process.env.NAME}`}</title></Helmet>
             <PyqCoverHeader />
             <div className="pyq-nrbk">
-                <div className="w-full px-4 text-start text-black dark:text-white py-2 text-2xl font-bold">
-                    {t('pinned')}
-                </div>
+                <div className="pyq-page-title">{t('pinned')}</div>
                 <Waiting for={status === 'idle'}>
                     {data.length === 0
                         ? <div className="pyq-card" style={{ color: "var(--texths)" }}>暂无置顶动态</div>

@@ -31,6 +31,12 @@
       "title": "Untop"
     }
   },
+  "feed": {
+    "load_more": "Load more",
+    "loading_more": "Loading…",
+    "no_more": "No more",
+    "empty": "No content yet"
+  },
   "avatar": {
     "url": "Avatar URL"
   },

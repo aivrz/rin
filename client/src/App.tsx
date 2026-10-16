@@ -5,10 +5,9 @@ import { DefaultParams, PathPattern, Route, Switch } from 'wouter'
 import Footer from './components/footer'
 import { Header } from './components/header'
 import { Padding } from './components/padding'
-import useTableOfContents from './hooks/useTableOfContents.tsx'
 import { client } from './main'
 import { CallbackPage } from './page/callback'
-import { FeedPage, TOCHeader } from './page/feed'
+import { FeedPage } from './page/feed'
 import { FeedsPage } from './page/feeds'
 import { FriendsPage } from './page/friends'
 import { HashtagPage } from './page/hashtag.tsx'
@@ -73,34 +72,34 @@ function App() {
               <link rel="icon" href={favicon} />}
           </Helmet>
           <Switch>
-            <RouteMe path="/">
+            <RoutePyq path="/">
               <FeedsPage />
-            </RouteMe>
+            </RoutePyq>
 
-            <RouteMe path="/timeline">
+            <RoutePyq path="/timeline">
               <TimelinePage />
-            </RouteMe>
+            </RoutePyq>
 
 
-            <RouteMe path="/friends">
+            <RoutePyq path="/friends">
               <FriendsPage />
-            </RouteMe>
+            </RoutePyq>
 
-            <RouteMe path="/hashtags">
+            <RoutePyq path="/hashtags">
               <HashtagsPage />
-            </RouteMe>
+            </RoutePyq>
 
-            <RouteMe path="/hashtag/:name">
+            <RoutePyq path="/hashtag/:name">
               {params => {
                 return (<HashtagPage name={params.name || ""} />)
               }}
-            </RouteMe>
+            </RoutePyq>
 
-            <RouteMe path="/search/:keyword">
+            <RoutePyq path="/search/:keyword">
               {params => {
                 return (<SearchPage keyword={params.keyword || ""} />)
               }}
-            </RouteMe>
+            </RoutePyq>
 
             <RouteMe path="/settings" paddingClassName='mx-4'>
               <Settings />
@@ -124,19 +123,25 @@ function App() {
               <CallbackPage />
             </RouteMe>
 
-            <RouteWithIndex path="/feed/:id">
-              {(params, TOC, clean) => {
-                return (<FeedPage id={params.id || ""} TOC={TOC} clean={clean} />)
-              }}
-            </RouteWithIndex>
+            <RoutePyq path="/feed/:id">
+              {params => (
+                <FeedPage id={params.id || ""} _TOC={() => <></>} clean={() => {}} />
+              )}
+            </RoutePyq>
 
-            <RouteWithIndex path="/:alias">
-              {(params, TOC, clean) => {
-                return (
-                  <FeedPage id={params.alias || ""} TOC={TOC} clean={clean} />
-                )
-              }}
-            </RouteWithIndex>
+            <Route path="/nav">
+              <NavPage />
+            </Route>
+
+            <Route path="/pinned">
+              <PinnedPage />
+            </Route>
+
+            <RoutePyq path="/:alias">
+              {params => (
+                <FeedPage id={params.alias || ""} _TOC={() => <></>} clean={() => {}} />
+              )}
+            </RoutePyq>
 
             <RouteMe path="/user/github">
               {_ => (
@@ -161,14 +166,6 @@ function App() {
                 </TipsPage>
               )}
             </RouteMe>
-
-            <Route path="/nav">
-              <NavPage />
-            </Route>
-
-            <Route path="/pinned">
-              <PinnedPage />
-            </Route>
 
             {/* Default route in a switch */}
             <Route>404: No such page!</Route>
@@ -198,15 +195,16 @@ function RouteMe({ path, children, headerComponent, paddingClassName }:
   )
 }
 
-
-function RouteWithIndex({ path, children }:
-  { path: PathPattern, children: (params: DefaultParams, TOC: () => JSX.Element, clean: (id: string) => void) => React.ReactNode }) {
-  const { TOC, cleanup } = useTableOfContents(".toc-content");
-  return (<RouteMe path={path} headerComponent={TOCHeader({ TOC: TOC })} paddingClassName='mx-4'>
-    {params => {
-      return children(params, TOC, cleanup)
-    }}
-  </RouteMe>)
+// pyq 朋友圈式布局路由：不使用 Rin 通用 Header/Footer，由页面自身渲染 pyq-main 与封面。
+function RoutePyq({ path, children }:
+  { path: PathPattern, children: React.ReactNode | ((params: DefaultParams) => React.ReactNode) }) {
+  return (
+    <Route path={path}>
+      {params => (
+        <>{typeof children === 'function' ? children(params) : children}</>
+      )}
+    </Route>
+  )
 }
 
 export default App

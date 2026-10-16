@@ -1,12 +1,13 @@
-import i18next from "i18next";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Helmet } from 'react-helmet';
+import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import Modal from 'react-modal';
 import Select from 'react-select';
 import { ShowAlertType, useAlert, useConfirm } from "../components/dialog";
 import { Input } from "../components/input";
 import { Waiting } from "../components/loading";
+import { PyqCoverHeader } from "../components/pyq_cover";
 import { client } from "../main";
 import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
@@ -69,15 +70,15 @@ export function FriendsPage() {
             headers: headersWithAuth()
         }).then(({ data }) => {
             if (data) {
-                const friends_available = data.friend_list?.filter(({ health, accepted }) => health.length === 0 && accepted === 1) || []
+                const friends_available = data.friend_list?.filter(({ health, accepted }: FriendItem) => health.length === 0 && accepted === 1) || []
                 shuffleArray(friends_available)
                 setFriendsAvailable(friends_available)
-                const friends_unavailable = data.friend_list?.filter(({ health, accepted }) => health.length > 0 && accepted === 1) || []
+                const friends_unavailable = data.friend_list?.filter(({ health, accepted }: FriendItem) => health.length > 0 && accepted === 1) || []
                 shuffleArray(friends_unavailable)
                 setFriendsUnavailable(friends_unavailable)
-                const waitList = data.friend_list?.filter(({ accepted }) => accepted === 0) || []
+                const waitList = data.friend_list?.filter(({ accepted }: FriendItem) => accepted === 0) || []
                 setWaitList(waitList)
-                const refuesdList = data.friend_list?.filter(({ accepted }) => accepted === -1) || []
+                const refuesdList = data.friend_list?.filter(({ accepted }: FriendItem) => accepted === -1) || []
                 setRefusedList(refuesdList)
                 if (data.apply_list)
                     setApply(data.apply_list)
@@ -99,30 +100,31 @@ export function FriendsPage() {
             <meta property="og:url" content={document.URL} />
         </Helmet>
         <Waiting for={friendsAvailable.length !== 0 || friendsUnavailable.length !== 0 || status === "idle"}>
-            <main className="w-full flex flex-col justify-center items-center mb-8 t-primary ani-show">
-                <FriendList title={t('friends.title')} show={friendsAvailable.length > 0} friends={friendsAvailable} />
-                <FriendList title={t('friends.left')} show={friendsUnavailable.length > 0} friends={friendsUnavailable} />
-                <FriendList title={t('friends.review.waiting')} show={waitList.length > 0} friends={waitList} />
-                <FriendList title={t('friends.review.rejected')} show={refusedList.length > 0} friends={refusedList} />
-                <FriendList title={t('friends.my_apply')} show={profile?.permission !== true && apply !== undefined} friends={apply ? [apply] : []} />
-                {profile && (profile.permission || config.get("friend_apply_enable")) &&
-                    <div className="wauto t-primary flex text-start text-2xl font-bold mt-8">
-                        <div className="md:basis-1/2 bg-w rounded-xl p-4">
-                            <p>
-                                {profile.permission ? t('friends.create') : t('friends.apply')}
-                            </p>
-                            <div className="text-sm mt-4 text-neutral-500 font-normal">
+            <main className="pyq-main">
+                <PyqCoverHeader />
+                <div className="pyq-nrbk">
+                    <div className="pyq-page-title">{t('friends.title')}</div>
+
+                    <FriendList title={t('friends.title')} show={friendsAvailable.length > 0} friends={friendsAvailable} />
+                    <FriendList title={t('friends.left')} show={friendsUnavailable.length > 0} friends={friendsUnavailable} />
+                    <FriendList title={t('friends.review.waiting')} show={waitList.length > 0} friends={waitList} />
+                    <FriendList title={t('friends.review.rejected')} show={refusedList.length > 0} friends={refusedList} />
+                    <FriendList title={t('friends.my_apply')} show={profile?.permission !== true && apply !== undefined} friends={apply ? [apply] : []} />
+
+                    {profile && (profile.permission || config.get("friend_apply_enable")) &&
+                        <div className="pyq-post" style={{ marginTop: 10 }}>
+                            <p style={{ color: "var(--thetitle)", fontWeight: 700, marginBottom: 8 }}>{profile.permission ? t('friends.create') : t('friends.apply')}</p>
+                            <div className="text-sm" style={{ color: "var(--texths)" }}>
                                 <Input value={name} setValue={setName} placeholder={t('sitename')} />
                                 <Input value={desc} setValue={setDesc} placeholder={t('description')} className="mt-2" />
                                 <Input value={avatar} setValue={setAvatar} placeholder={t('avatar.url')} className="mt-2" />
                                 <Input value={url} setValue={setUrl} placeholder={t('url')} className="my-2" />
                                 <div className='flex flex-row justify-center'>
-                                    <button onClick={publishButton} className='basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light'>{t('create.title')}</button>
+                                    <button onClick={publishButton} className='pyq-btn-theme'>{t('create.title')}</button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                }
+                        </div>}
+                </div>
             </main>
         </Waiting>
         <AlertUI />
@@ -133,12 +135,8 @@ function FriendList({ title, show, friends }: { title: string, show: boolean, fr
     return (<>
         {
             show && <>
-                <div className="wauto text-start py-4">
-                    <p className="text-sm mt-4 text-neutral-500 font-normal">
-                        {title}
-                    </p>
-                </div>
-                <div className="wauto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="pyq-section-label">{title}</div>
+                <div className="pyq-card">
                     {friends.map((friend) => (
                         <Friend key={friend.id} friend={friend} />
                     ))}
@@ -155,7 +153,7 @@ function Friend({ friend }: { friend: FriendItem }) {
     const [name, setName] = useState(friend.name)
     const [desc, setDesc] = useState(friend.desc || "")
     const [url, setUrl] = useState(friend.url)
-    const [status, setStatus] = useState(friend.accepted)
+    const [statusV, setStatusV] = useState(friend.accepted)
     const [modalIsOpen, setIsOpen] = useState(false);
     const { showConfirm, ConfirmUI } = useConfirm()
     const { showAlert, AlertUI } = useAlert()
@@ -185,7 +183,7 @@ function Friend({ friend }: { friend: FriendItem }) {
             name,
             desc,
             url,
-            accepted: status
+            accepted: statusV
         }, {
             headers: headersWithAuth()
         }).then(({ error }) => {
@@ -197,7 +195,7 @@ function Friend({ friend }: { friend: FriendItem }) {
                 })
             }
         })
-    }, [avatar, name, desc, url, status])
+    }, [avatar, name, desc, url, statusV])
 
     const statusOption = [
         { value: -1, label: t('friends.review.rejected') },
@@ -206,18 +204,24 @@ function Friend({ friend }: { friend: FriendItem }) {
     ]
     return (
         <>
-            <a title={friend.name} href={friend.url} target="_blank" className="bg-button w-full bg-w rounded-xl p-4 flex flex-col justify-center items-center relative">
-                <div className="w-16 h-16">
-                    <img className={"rounded-full " + (friend.health.length > 0 ? "grayscale" : "")} src={friend.avatar} alt={friend.name} />
+            <a title={friend.name} href={friend.url} target="_blank" rel="noreferrer"
+                className="pyq-friend">
+                <img className={(friend.health.length > 0 ? "grayscale" : "")} src={friend.avatar} alt={friend.name} referrerPolicy="no-referrer" />
+                <div className="pyq-friend-body">
+                    <div className="pyq-friend-name">
+                        {friend.name}
+                        {friend.accepted !== 1 && <span className="pyq-friend-status">{statusOption[friend.accepted + 1].label}</span>}
+                    </div>
+                    {friend.health.length == 0 && friend.desc &&
+                        <div className="pyq-friend-desc">{friend.desc}</div>}
+                    {friend.health.length > 0 &&
+                        <div className="pyq-friend-desc" style={{ color: "var(--texths)" }}>{errorHumanize(friend.health)}</div>}
                 </div>
-                <p className="text-base text-center">{friend.name}</p>
-                {friend.health.length == 0 && <p className="text-sm text-neutral-500 text-center">{friend.desc}</p>}
-                {friend.accepted !== 1 && <p className={`${friend.accepted === 0 ? "t-primary" : "text-theme"}`}>{statusOption[friend.accepted + 1].label}</p>}
-                {friend.health.length > 0 && <p className="text-sm text-gray-500 text-center">{errorHumanize(friend.health)}</p>}
-                {(profile?.permission || profile?.id === friend.uid) && <>
-                    <button onClick={(e) => { e.preventDefault(); setIsOpen(true) }} className="absolute top-0 right-0 m-2 px-2 py-1 bg-secondary t-primary rounded-full bg-button">
+                {(profile?.permission || profile?.id === friend.uid) &&
+                    <button onClick={(e) => { e.preventDefault(); setIsOpen(true) }}
+                        className="pyq-comment-edit" aria-label={t('update$sth', { sth: friend.name })}>
                         <i className="ri-settings-line"></i>
-                    </button></>}
+                    </button>}
             </a>
 
             <Modal
@@ -265,7 +269,7 @@ function Friend({ friend }: { friend: FriendItem }) {
                                         onChange={(newValue, _) => {
                                             const value = newValue?.value
                                             if (value !== undefined) {
-                                                setStatus(value)
+                                                setStatusV(value)
                                             }
                                         }}
                                     />

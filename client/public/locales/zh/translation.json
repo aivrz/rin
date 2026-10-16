@@ -31,6 +31,12 @@
       "title": "取消置顶"
     }
   },
+  "feed": {
+    "load_more": "加载更多",
+    "loading_more": "加载中…",
+    "no_more": "没有更多了",
+    "empty": "暂无内容"
+  },
   "avatar": {
     "url": "头像 URL"
   },

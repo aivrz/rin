@@ -76,6 +76,14 @@ export const ewsLogs = sqliteTable("ews_logs", {
     updateTime: text("update_time"),
 });
 
+// 点赞（erphplogin 风格社交互动）：每一条记录表示某用户赞了某篇文章
+export const likes = sqliteTable("likes", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    feedId: integer("feed_id").references(() => feeds.id, { onDelete: 'cascade' }).notNull(),
+    userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    createdAt: created_at,
+});
+
 export const comments = sqliteTable("comments", {
     id: integer("id").primaryKey(),
     feedId: integer("feed_id").references(() => feeds.id, { onDelete: 'cascade' }).notNull(),

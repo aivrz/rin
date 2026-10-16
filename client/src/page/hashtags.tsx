@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Helmet } from 'react-helmet';
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import { HashTag } from "../components/hashtag";
+import { PyqCoverHeader } from "../components/pyq_cover";
 import { Waiting } from "../components/loading";
 import { client } from "../main";
 import { siteName } from "../utils/constants";
@@ -39,29 +39,23 @@ export function HashtagsPage() {
                 <meta property="og:url" content={document.URL} />
             </Helmet>
             <Waiting for={hashtags}>
-                <main className="w-full flex flex-col justify-center items-center mb-8 ani-show">
-                    <div className="wauto text-start text-black dark:text-white py-4 text-4xl font-bold">
-                        <p>
-                            {t('hashtags')}
-                        </p>
-                    </div>
-
-                    <div className="wauto flex flex-col flex-wrap items-start justify-start">
-                        {hashtags?.filter(({ feeds }) => feeds > 0).map((hashtag, index) => {
-                            return (
-                                <div key={index} className="w-full flex flex-row">
-                                    <div className="w-full rounded-2xl m-2 duration-300 flex flex-row items-center space-x-4   ">
-                                        <Link href={`/hashtag/${hashtag.name}`} className="text-base t-primary hover:text-theme text-pretty overflow-hidden">
-                                            <HashTag name={hashtag.name} />
-                                        </Link>
-                                        <div className="flex-1" />
-                                        <span className="t-secondary text-sm">
+                <main className="pyq-main">
+                    <PyqCoverHeader />
+                    <div className="pyq-nrbk">
+                        <div className="pyq-page-title">{t('hashtags')}</div>
+                        <div className="pyq-card">
+                            {hashtags?.filter(({ feeds }) => feeds > 0).map((hashtag, index) => {
+                                return (
+                                    <Link key={index} href={`/hashtag/${hashtag.name}`}
+                                        className="pyq-hashtag-row">
+                                        <span className="pyq-hashtag-name">#{hashtag.name}</span>
+                                        <span className="pyq-hashtag-count">
                                             {t("article.total_short$count", { count: hashtag.feeds })}
                                         </span>
-                                    </div>
-                                </div>
-                            )
-                        })}
+                                    </Link>
+                                )
+                            })}
+                        </div>
                     </div>
                 </main>
             </Waiting>

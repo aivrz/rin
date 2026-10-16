@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Helmet } from 'react-helmet'
 import { useTranslation } from "react-i18next"
 import { FeedCard } from "../components/feed_card"
+import { PyqCoverHeader } from "../components/pyq_cover"
 import { Waiting } from "../components/loading"
 import { client } from "../main"
 import { headersWithAuth } from "../utils/auth"
@@ -64,24 +65,25 @@ export function HashtagPage({ name }: { name: string }) {
                 <meta property="og:url" content={document.URL} />
             </Helmet>
             <Waiting for={hashtag || status === 'idle'}>
-                <main className="w-full flex flex-col justify-center items-center mb-8">
-                    <div className="wauto text-start text-black dark:text-white py-4 text-4xl font-bold">
-                        <p>
-                            {hashtag?.name}
-                        </p>
-                        <div className="flex flex-row justify-between">
-                            <p className="text-sm mt-4 text-neutral-500 font-normal">
+                <main className="pyq-main">
+                    <PyqCoverHeader />
+                    <div className="pyq-nrbk">
+                        <div className="pyq-page-title">
+                            #{hashtag?.name}
+                            <span style={{ color: "var(--texths)", fontWeight: 400, marginLeft: 6, fontSize: 14 }}>
                                 {t('article.total$count', { count: hashtag?.feeds?.length })}
-                            </p>
+                            </span>
                         </div>
+                        <Waiting for={status === 'idle'}>
+                            {hashtag?.feeds && hashtag.feeds.length > 0
+                                ? <div className="flex flex-col">
+                                    {hashtag.feeds.map(({ id, ...feed }: any) => (
+                                        <FeedCard key={id} id={id} {...feed} />
+                                    ))}
+                                </div>
+                                : <div className="pyq-page-tip">{t('feed.empty')}</div>}
+                        </Waiting>
                     </div>
-                    <Waiting for={status === 'idle'}>
-                        <div className="wauto flex flex-col">
-                            {hashtag?.feeds?.map(({ id, ...feed }: any) => (
-                                <FeedCard key={id} id={id} {...feed} />
-                            ))}
-                        </div>
-                    </Waiting>
                 </main>
             </Waiting>
         </>

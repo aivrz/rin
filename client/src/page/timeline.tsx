@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Helmet } from 'react-helmet'
 import { Link } from "wouter"
 import { Waiting } from "../components/loading"
+import { PyqCoverHeader } from "../components/pyq_cover"
 import { client } from "../main"
 import { headersWithAuth } from "../utils/auth"
 import { siteName } from "../utils/constants"
@@ -40,34 +41,28 @@ export function TimelinePage() {
                 <meta property="og:url" content={document.URL} />
             </Helmet>
             <Waiting for={feeds}>
-                <main className="w-full flex flex-col justify-center items-center mb-8 ani-show">
-                    <div className="wauto text-start text-black dark:text-white py-4 text-4xl font-bold">
-                        <p>
-                            {t('timeline')}
-                        </p>
-                        <div className="flex flex-row justify-between">
-                            <p className="text-sm mt-4 text-neutral-500 font-normal">
-                                {t('article.total$count', { count: length })}
-                            </p>
-                        </div>
+                <main className="pyq-main ani-show">
+                    <PyqCoverHeader />
+                    <div className="pyq-page-title">
+                        {t('timeline')}
+                        <span style={{ color: "var(--texths)", fontWeight: 400, marginLeft: 6 }}>{t('article.total$count', { count: length })}</span>
                     </div>
-                    {feeds && Object.keys(feeds).sort((a, b) => parseInt(b) - parseInt(a)).map(year => (
-                        <div key={year} className="wauto flex flex-col justify-center items-start">
-                            <h1 className="flex flex-row items-center space-x-2">
-                                <span className="text-2xl font-bold t-primary ">
+                    <div className="pyq-timeline">
+                        {feeds && Object.keys(feeds).sort((a, b) => parseInt(b) - parseInt(a)).map(year => (
+                            <div key={year}>
+                                <div className="pyq-tl-year">
                                     {t('year$year', { year: year })}
-                                </span>
-                                <span className="text-sm t-secondary">
-                                    {t('article.total_short$count', { count: feeds[+year]?.length })}
+                                    <span style={{ fontSize: 13, color: "var(--texths)", marginLeft: 8, fontWeight: 400 }}>
+                                        {t('article.total_short$count', { count: feeds[+year]?.length })}
                                     </span>
-                            </h1>
-                            <div className="w-full flex flex-col justify-center items-start my-4">
+                                </div>
                                 {feeds[+year]?.map(({ id, title, createdAt }) => (
                                     <FeedItem key={id} id={id.toString()} title={title || t('untitled')} createdAt={new Date(createdAt)} />
                                 ))}
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                    <div className="pyq-copyright">© {new Date().getFullYear()} {process.env.NAME}</div>
                 </main>
             </Waiting>
         </>
@@ -75,20 +70,15 @@ export function TimelinePage() {
 }
 
 export function FeedItem({ id, title, createdAt }: { id: string, title: string, createdAt: Date }) {
-    const formatter = new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit' });
+    const d = new Date(createdAt)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
     return (
-        <div className="flex flex-row pl-8">
-            <div className="flex flex-row items-center">
-                <div className="w-2 h-2 bg-theme rounded-full"></div>
-            </div>
-            <div className="flex-1 rounded-2xl m-2 duration-300 flex flex-row items-center space-x-4   ">
-                <span className="t-secondary text-sm" title={new Date(createdAt).toLocaleString()}>
-                    {formatter.format(new Date(createdAt))}
-                </span>
-                <Link href={`/feed/${id}`} target="_blank" className="text-base t-primary hover:text-theme text-pretty overflow-hidden">
-                    {title}
-                </Link>
-            </div>
+        <div className="pyq-tl-item">
+            <div className="pyq-tl-date"><b>{day}</b><span>{month}</span></div>
+            <Link className="pyq-tl-card" href={`/feed/${id}`}>
+                <span style={{ color: "var(--thetitle)", fontSize: 15 }}>{title}</span>
+            </Link>
         </div>
     )
 }
