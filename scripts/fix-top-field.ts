@@ -1,17 +1,14 @@
 import { $ } from "bun"
 
 export async function fixTopField(typ: 'local' | 'remote', db: string, isInfoExistResult: boolean) {
-    if (!isInfoExistResult) {
-        console.log("Legacy database, check top field")
-        const result = await $`bunx wrangler d1 execute ${db}  --${typ} --json --command "SELECT name FROM pragma_table_info('feeds') WHERE name='top'"`.quiet().json()
-        if (result[0].results.length === 0) {
-            console.log("Adding top field to feeds table")
-            await $`bunx wrangler d1 execute ${db}  --${typ} --json --command "ALTER TABLE feeds ADD COLUMN top INTEGER DEFAULT 0"`.quiet()
-        } else {
-            console.log("Top field already exists in feeds table")
-        }
+    // 无论是旧库还是新库，都检查 feeds.top 是否存在；早期 0000.sql 漏了 top 列
+    console.log("Checking top field in feeds table")
+    const result = await $`bunx wrangler d1 execute ${db}  --${typ} --json --command "SELECT name FROM pragma_table_info('feeds') WHERE name='top'"`.quiet().json()
+    if (result[0].results.length === 0) {
+        console.log("Adding top field to feeds table")
+        await $`bunx wrangler d1 execute ${db}  --${typ} --json --command "ALTER TABLE feeds ADD COLUMN top INTEGER DEFAULT 0"`.quiet()
     } else {
-        console.log("New database, skip top field check")
+        console.log("Top field already exists in feeds table")
     }
 }
 

@@ -19,9 +19,11 @@ export function SearchPage({ keyword }: { keyword: string }) {
     const [hasNext, setHasNext] = useState(false)
     const [status, setStatus] = useState<'loading' | 'idle'>('idle')
     const [loadingMore, setLoadingMore] = useState(false)
+    const [error, setError] = useState(false)
     const pageRef = useRef(1)
     const hasNextRef = useRef(false)
     const loadingRef = useRef(false)
+    const errorRef = useRef(false)
     const keywordRef = useRef(keyword)
     const limitRef = useRef(limit)
     const sentinelRef = useRef<HTMLDivElement>(null)
@@ -52,6 +54,11 @@ export function SearchPage({ keyword }: { keyword: string }) {
             // 内容不足一屏时自动续拉，直到填满视口或无更多
             ensureFilled()
         }).catch(() => {
+            setError(true)
+            errorRef.current = true
+            setHasNext(false)
+            hasNextRef.current = false
+            setStatus('idle')
             setLoadingMore(false)
             loadingRef.current = false
         })
@@ -59,7 +66,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
     function ensureFilled() {
         const el = sentinelRef.current
-        if (!el) return
+        if (!el || errorRef.current) return
         const rect = el.getBoundingClientRect()
         if (hasNextRef.current && !loadingRef.current && rect.top <= window.innerHeight + 400) {
             fetchPage(pageRef.current + 1, false)
@@ -73,10 +80,14 @@ export function SearchPage({ keyword }: { keyword: string }) {
             setItems([])
             setSize(0)
             setHasNext(false)
+            setError(false)
+            errorRef.current = false
             return
         }
         setStatus('loading')
         setItems([])
+        setError(false)
+        errorRef.current = false
         pageRef.current = 1
         hasNextRef.current = true
         fetchPage(1, true)
@@ -124,8 +135,9 @@ export function SearchPage({ keyword }: { keyword: string }) {
                             : <div className="pyq-page-tip">{t('feed.empty')}</div>}
                         <div className="pyq-infinite-footer">
                             {loadingMore && <div className="pyq-infinite-tip"><span className="pyq-spinner" /> {t('feed.loading_more')}</div>}
-                            {!hasNext && items.length > 0 && <div className="pyq-infinite-tip pyq-infinite-nomore">{t('feed.no_more')}</div>}
-                            {hasNext && !loadingMore && items.length > 0 &&
+                            {error && <div className="pyq-infinite-tip" style={{ color: "#fa5151" }}>加载失败，请稍后重试</div>}
+                            {!error && !hasNext && items.length > 0 && <div className="pyq-infinite-tip pyq-infinite-nomore">{t('feed.no_more')}</div>}
+                            {!error && hasNext && !loadingMore && items.length > 0 &&
                                 <button className="pyq-nav-item pyq-infinite-btn" onClick={() => fetchPage(pageRef.current + 1, false)}>{t('feed.load_more')}</button>}
                             <div ref={sentinelRef} />
                         </div>
