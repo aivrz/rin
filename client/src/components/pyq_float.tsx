@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Menu, Music, X } from "lucide-react";
 
 // 仿 pyq 右下角悬浮菜单 + 全局音乐播放器。
 export function PyqFloat() {
@@ -33,10 +32,10 @@ export function PyqFloat() {
                 </div>}
             <div className="pyq-menu">
                 <button className="pyq-menu-k" aria-label="音乐" title="背景音乐" onClick={() => setPlayer(v => !v)}>
-                    <Music />
+                    <i className="ri-music-2-line" />
                 </button>
                 <button className="pyq-menu-k" aria-label="菜单" title="菜单" onClick={() => setOpen(v => !v)}>
-                    {open ? <X /> : <Menu />}
+                    {open ? <i className="ri-close-line" /> : <i className="ri-menu-line" />}
                 </button>
             </div>
             {player &&

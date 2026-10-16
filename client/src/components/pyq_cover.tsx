@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, User, Menu, X } from "lucide-react";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { ClientConfigContext } from "../state/config";
 import { useContext } from "react";
@@ -41,19 +40,19 @@ export function PyqCoverHeader() {
             <div className="pyq-main-head-top">
                 <div className="pyq-main-head-top-left">
                     <Link href="/" className="pyq-main-head-top-left-s" aria-label="首页" title="首页">
-                        <Home />
+                        <i className="ri-home-4-line" />
                     </Link>
                 </div>
                 <div className="pyq-main-head-top-right">
                     <button className="pyq-main-head-top-right-s" aria-label="搜索" title="搜索" onClick={() => setSearchOpen(true)}>
-                        <Search />
+                        <i className="ri-search-line" />
                     </button>
                     {loginEnabled &&
                         <button className="pyq-main-head-top-right-s" aria-label="登录" title="登录" onClick={() => setIsOpened(true)}>
-                            <User />
+                            <i className="ri-user-line" />
                         </button>}
                     <Link href="/nav" className="pyq-main-head-top-right-s" aria-label="导航" title="全站导航">
-                        <Menu />
+                        <i className="ri-menu-line" />
                     </Link>
                 </div>
             </div>
@@ -84,7 +83,7 @@ export function PyqCoverHeader() {
                     <div className="pyq-search-main" onClick={(e) => e.stopPropagation()}>
                         <div className="pyq-search-main-top">
                             <div className="pyq-news-main-top-xiaoxih"><span>搜索文章</span></div>
-                            <div className="pyq-news-main-top-div" onClick={() => setSearchOpen(false)}><X /></div>
+                            <div className="pyq-news-main-top-div" onClick={() => setSearchOpen(false)}><i className="ri-close-line" /></div>
                         </div>
                         <div className="pyq-search-input-wrap">
                             <input

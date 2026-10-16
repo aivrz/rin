@@ -1,7 +1,6 @@
 import { useContext, useState } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
-import { Heart, MessageCircle } from "lucide-react";
 import { timeago } from "../utils/timeago";
 import { HashTag } from "./hashtag";
 import { useLike } from "../hooks/useLike";
@@ -106,11 +105,11 @@ export function FeedCard({
                         <div className="pyq-content-right-time-right">
                             <div className="pyq-content-right-time-right-left">
                                 <span className="pyq-content-right-time-right-left-z" onClick={onLike}>
-                                    <Heart fill={like.liked ? "#fa5151" : "none"} style={like.liked ? { color: "#fa5151" } : undefined} />
+                                    <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151" } : undefined} />
                                     {like.count > 0 ? like.count : ""}
                                 </span>
                                 <Link href={`/feed/${id}`} className="pyq-content-right-time-right-left-y">
-                                    <MessageCircle />
+                                    <i className="ri-message-3-line" />
                                     {(comments && comments.length > 0) ? comments.length : ""}
                                 </Link>
                             </div>
@@ -121,7 +120,7 @@ export function FeedCard({
                         <div className="pyq-zanp">
                             {like.count > 0 &&
                                 <div className="pyq-zanp-zan" style={{ display: "flex" }}>
-                                    <div className="pyq-zanp-zan-left"><Heart fill="#fa5151" style={{ color: "#fa5151" }} /></div>
+                                    <div className="pyq-zanp-zan-left"><i className="ri-heart-3-fill" style={{ color: "#fa5151" }} /></div>
                                     <ul className="pyq-zanp-zan-right">
                                         <li><span className="pyq-like-text">{like.count} 人点赞</span></li>
                                     </ul>

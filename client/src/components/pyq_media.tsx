@@ -1,5 +1,3 @@
-import { Music, Play } from "lucide-react";
-
 export type MediaItem = {
     type: "music" | "video";
     url: string;
@@ -34,7 +32,7 @@ export function extractMedia(content: string): { media: MediaItem[], content: st
 export function PyqMusicCard({ url, title }: { url: string, title?: string }) {
     return (
         <div className="pyq-music">
-            <div className="pyq-music-cover"><Music /></div>
+            <div className="pyq-music-cover"><i className="ri-music-2-line" /></div>
             <div className="pyq-music-info">
                 <div className="pyq-music-title">{title || "音乐"}</div>
                 <audio src={url} controls preload="none" />
@@ -68,7 +66,7 @@ export function PyqVideoEmbed({ url }: { url: string }) {
     return (
         <a className="pyq-video" href={url} target="_blank" rel="noreferrer"
             style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", textDecoration: "none" }}>
-            <span className="pyq-video-span"><Play /> {host || "视频"}</span>
+            <span className="pyq-video-span"><i className="ri-play-line" /> {host || "视频"}</span>
         </a>
     );
 }

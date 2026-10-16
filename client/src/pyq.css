@@ -206,10 +206,9 @@ body.dark-theme,
     backdrop-filter: blur(6px);
 }
 
-.pyq-main-head-top-left-s svg,
-.pyq-main-head-top-right-s svg {
-    width: var(--topbar-btn-icon);
-    height: var(--topbar-btn-icon);
+.pyq-main-head-top-left-s i,
+.pyq-main-head-top-right-s i {
+    font-size: var(--topbar-btn-icon);
     color: var(--topbar-btn-icon-color);
 }
 
@@ -529,6 +528,7 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     align-items: center;
     justify-content: center;
     color: var(--theme);
+    font-size: 22px;
 }
 
 .pyq-music-info {
@@ -586,10 +586,9 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     font-size: 14px;
 }
 
-.pyq-content-right-time-right-left-z svg,
-.pyq-content-right-time-right-left-y svg {
-    width: 18px;
-    height: 18px;
+.pyq-content-right-time-right-left-z i,
+.pyq-content-right-time-right-left-y i {
+    font-size: 18px;
     color: var(--iconhs);
 }
 
@@ -613,10 +612,9 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     border-bottom: 1px solid var(--dzplcdfg);
 }
 
-.pyq-zanp-zan-left svg {
+.pyq-zanp-zan-left i {
     color: #fa5151;
-    width: 16px;
-    height: 16px;
+    font-size: 16px;
 }
 
 .pyq-zanp-zan-right {

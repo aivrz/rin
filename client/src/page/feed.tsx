@@ -21,7 +21,6 @@ import { Button } from "../components/button";
 import { Tips } from "../components/tips";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { useLike } from "../hooks/useLike";
-import { Heart } from "lucide-react";
 import mermaid from "mermaid";
 
 type Feed = {
@@ -259,7 +258,7 @@ export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, c
               )}
               <div className="pyq-post-likebar">
                 <button className={like.liked ? "pyq-post-like on" : "pyq-post-like"} onClick={onLike}>
-                  <Heart fill={like.liked ? "#fa5151" : "none"} style={like.liked ? { color: "#fa5151" } : undefined} />
+                  <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151" } : undefined} />
                   <span>{like.liked ? "已赞" : "赞"}</span>
                   {like.count > 0 && <span className="pyq-post-like-count">{like.count}</span>}
                 </button>

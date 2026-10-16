@@ -31,7 +31,6 @@
     "react-modal": "^3.16.1",
     "react-select": "^5.8.0",
     "reactjs-popup": "^2.0.6",
-    "lucide-react": "^0.460.0",
     "remark-github-blockquote-alert": "^1.2.1",
     "remixicon": "^4.2.0",
     "rin-server": "workspace:rin-server@latest",
