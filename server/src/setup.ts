@@ -9,6 +9,18 @@ import jwt from "./utils/jwt";
 
 
 const anyUser = async (db: DB) => (await db.query.users.findMany())?.length > 0
+
+// 将匿名标识（前端 localStorage UUID）映射为稳定的负整数，复用 likes.userId 列，避免新增表字段
+function anonIdToUid(anonId: string | undefined): number | undefined {
+    if (!anonId) return undefined
+    let h = 0x811c9dc5
+    for (let i = 0; i < anonId.length; i++) {
+        h ^= anonId.charCodeAt(i)
+        h = Math.imul(h, 0x01000193)
+    }
+    const u = (h >>> 0) % 2_000_000_000
+    return -1 - u
+}
 export function setup() {
     const db: DB = getDB();
     const env: Env = getEnv();
@@ -42,32 +54,34 @@ export function setup() {
             })
         )
         .derive({ as: 'global' }, async ({ headers, jwt }) => {
+            const anonUid = anonIdToUid(headers['x-anon-id'])
             const authorization = headers['authorization']
             if (!authorization) {
-                return {};
+                return { anonUid };
             }
             const token = authorization.split(' ')[1]
             if (process.env.NODE_ENV?.toLowerCase() === 'test') {
                 console.warn('Now in test mode, skip jwt verification.')
                 try {
-                    return JSON.parse(token);
+                    return { ...JSON.parse(token), anonUid };
                 } catch (e) {
-                    return {};
+                    return { anonUid };
                 }
             }
             const profile = await jwt.verify(token)
             if (!profile) {
-                return {};
+                return { anonUid };
             }
 
             const user = await db.query.users.findFirst({ where: eq(users.id, profile.id) })
             if (!user) {
-                return {};
+                return { anonUid };
             }
             return {
                 uid: user.id,
                 username: user.username,
                 admin: user.permission === 1,
+                anonUid,
             }
         })
 }

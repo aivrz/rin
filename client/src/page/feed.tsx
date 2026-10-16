@@ -1,5 +1,4 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Helmet } from "react-helmet";
 import { useTranslation } from "react-i18next";
 import ReactModal from "react-modal";
 import Popup from "reactjs-popup";
@@ -11,11 +10,11 @@ import { Markdown } from "../components/markdown";
 import { FeedCard } from "../components/feed_card";
 import { PyqCoverHeader } from "../components/pyq_cover";
 import { PyqMusicCard, PyqVideoEmbed, extractMedia } from "../components/pyq_media";
+import { Seo } from "../components/seo";
 import { client } from "../main";
 import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
 import { headersWithAuth } from "../utils/auth";
-import { siteName } from "../utils/constants";
 import { timeago } from "../utils/timeago";
 import { Button } from "../components/button";
 import { Tips } from "../components/tips";
@@ -168,35 +167,23 @@ export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, c
   return (
     <Waiting for={feed || error}>
       {feed && (
-        <Helmet>
-          <title>{`${feed.title ?? "Unnamed"} - ${process.env.NAME}`}</title>
-          <meta property="og:site_name" content={siteName} />
-          <meta property="og:title" content={feed.title ?? ""} />
-          <meta property="og:image" content={headImage ?? process.env.AVATAR} />
-          <meta property="og:type" content="article" />
-          <meta property="og:url" content={document.URL} />
-          <meta
-            name="og:description"
-            content={
-              feed.content.length > 200
-                ? feed.content.substring(0, 200)
-                : feed.content
-            }
-          />
-          <meta name="author" content={feed.user.username} />
-          <meta
-            name="keywords"
-            content={feed.hashtags.map(({ name }) => name).join(", ")}
-          />
-          <meta
-            name="description"
-            content={
-              feed.content.length > 200
-                ? feed.content.substring(0, 200)
-                : feed.content
-            }
-          />
-        </Helmet>
+        <Seo
+          title={feed.title ?? undefined}
+          description={feed.content.length > 200 ? feed.content.substring(0, 200) : feed.content}
+          image={headImage ?? process.env.AVATAR}
+          type="article"
+          jsonLd={{
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": feed.title ?? "",
+            "datePublished": new Date(feed.createdAt).toISOString(),
+            "dateModified": new Date(feed.updatedAt).toISOString(),
+            "author": { "@type": "Person", "name": feed.user.username },
+            "image": headImage ?? process.env.AVATAR,
+            "keywords": feed.hashtags.map(({ name }) => name).join(", "),
+            "description": feed.content.length > 200 ? feed.content.substring(0, 200) : feed.content
+          }}
+        />
       )}
       <main className="pyq-main ani-show">
         <PyqCoverHeader />

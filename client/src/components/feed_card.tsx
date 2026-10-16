@@ -3,9 +3,11 @@ import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
 import { HashTag } from "./hashtag";
+import { CommentModal } from "./comment_modal";
 import { useLike } from "../hooks/useLike";
 import { ProfileContext } from "../state/profile";
 import { useLoginModal } from "../hooks/useLoginModal";
+import { siteName } from "../utils/constants";
 
 function stripMdImages(text: string): string {
     return text.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -18,10 +20,11 @@ function gridClass(n: number): string {
 }
 
 export function FeedCard({
-    id, user, summary, content, images, hashtags, createdAt, updatedAt, top, draft, listed, likes, liked, comments
+    id, user, title, summary, content, images, hashtags, createdAt, updatedAt, top, draft, listed, likes, liked, comments
 }: {
     id: string,
     user?: { id: number, username: string, avatar: string },
+    title?: string,
     summary?: string,
     content?: string,
     images?: string[],
@@ -41,6 +44,7 @@ export function FeedCard({
     // 列表已返回 likes/liked，直接用初始值，避免逐卡片请求
     const like = useLike(id, { count: likes || 0, liked: liked || false, fetch: false });
     const [lightbox, setLightbox] = useState<string | null>(null);
+    const [commentOpen, setCommentOpen] = useState(false);
 
     const author = user?.username || "匿名";
     const avatar = user?.avatar || "";
@@ -51,7 +55,6 @@ export function FeedCard({
     const showComments = (comments && comments.length > 0) || like.count > 0;
 
     const onLike = () => {
-        if (!profile) { setIsOpened(true); return; }
         like.toggle();
     };
 
@@ -59,15 +62,18 @@ export function FeedCard({
         <>
             <div className="pyq-content">
                 <div className="pyq-content-left">
-                    {avatar
-                        ? <img src={avatar} alt={author} referrerPolicy="no-referrer" />
-                        : <div style={{ width: 38, height: 38, borderRadius: 6, background: "var(--imgbgy)" }} />}
+                    <Link href="/" aria-label="主页" title="主页">
+                        {avatar
+                            ? <img src={avatar} alt={author} referrerPolicy="no-referrer" />
+                            : <div style={{ width: 38, height: 38, borderRadius: 6, background: "var(--imgbgy)" }} />}
+                    </Link>
                 </div>
                 <div className="pyq-content-right">
                     <div className="pyq-content-right-head">
                         <div className="pyq-content-right-head-title">
-                            <p>{author}</p>
+                            <Link href={`/feed/${id}`} className="pyq-content-title-link">{`${siteName} - ${title || author}`}</Link>
                         </div>
+                        <div className="pyq-content-right-head-author">{author}</div>
                         {(top === 1 || draft === 1 || listed === 0) &&
                             <div className="pyq-content-right-head-ad">
                                 {top === 1 && <span className="pyq-content-right-head-title-ad" style={{ background: "var(--themetm)", color: "var(--theme)" }}>置顶</span>}
@@ -108,10 +114,10 @@ export function FeedCard({
                                     <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151" } : undefined} />
                                     {like.count > 0 ? like.count : ""}
                                 </span>
-                                <Link href={`/feed/${id}`} className="pyq-content-right-time-right-left-y">
+                                <button className="pyq-content-right-time-right-left-y" onClick={() => setCommentOpen(true)}>
                                     <i className="ri-message-3-line" />
                                     {(comments && comments.length > 0) ? comments.length : ""}
-                                </Link>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -143,6 +149,7 @@ export function FeedCard({
                 <div className="pyq-lightbox" onClick={() => setLightbox(null)}>
                     <img src={lightbox} alt="" referrerPolicy="no-referrer" />
                 </div>}
+            <CommentModal feedId={id} open={commentOpen} onClose={() => setCommentOpen(false)} />
             <LoginModal />
         </>
     );

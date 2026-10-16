@@ -85,10 +85,13 @@ export function UserService() {
                     }
                     set.redirect = redirect_url
                 }, {
+                    // GitHub 新版 OAuth 回调会额外携带 iss/aud 等参数，需放行以免被校验拒绝
                     query: t.Object({
                         state: t.String(),
                         code: t.String(),
-                    })
+                        iss: t.Optional(t.String()),
+                        aud: t.Optional(t.String()),
+                    }, { additionalProperties: true })
                 })
                 .get('/profile', async ({ set, uid }) => {
                     if (!uid) {

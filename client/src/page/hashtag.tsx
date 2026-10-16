@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { Helmet } from 'react-helmet'
 import { useTranslation } from "react-i18next"
 import { FeedCard } from "../components/feed_card"
 import { PyqCoverHeader } from "../components/pyq_cover"
 import { Waiting } from "../components/loading"
+import { Seo } from "../components/seo"
 import { client } from "../main"
 import { headersWithAuth } from "../utils/auth"
-import { siteName } from "../utils/constants"
 
 type FeedsData = {
     name: string;
@@ -56,14 +55,7 @@ export function HashtagPage({ name }: { name: string }) {
     }, [name])
     return (
         <>
-            <Helmet>
-                <title>{`${hashtag?.name} - ${process.env.NAME}`}</title>
-                <meta property="og:site_name" content={siteName} />
-                <meta property="og:title" content={hashtag?.name} />
-                <meta property="og:image" content={process.env.AVATAR} />
-                <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
-            </Helmet>
+            <Seo title={`#${hashtag?.name ?? name}`} description={`标签 #${hashtag?.name ?? name} 下的全部文章`} image={process.env.AVATAR} />
             <Waiting for={hashtag || status === 'idle'}>
                 <main className="pyq-main">
                     <PyqCoverHeader />

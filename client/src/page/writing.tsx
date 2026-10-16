@@ -8,6 +8,7 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Helmet } from "react-helmet";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import Loading from 'react-loading';
 import { ShowAlertType, useAlert } from '../components/dialog';
 import { Checkbox, Input } from "../components/input";
@@ -153,6 +154,125 @@ function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: Sh
 }
 
 
+
+// 后台文章管理列表：复用 FeedService 的列表/置顶/删除接口
+function ManageList() {
+  const { t } = useTranslation();
+  const { showAlert } = useAlert();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fetchAll = async () => {
+    setLoading(true);
+    const types = ['normal', 'draft', 'unlisted'];
+    const results = await Promise.all(
+      types.map((tp) =>
+        client.feed.index.get({
+          query: { page: 1, limit: 300, type: tp },
+          headers: headersWithAuth(),
+        })
+      )
+    );
+    const merged: any[] = [];
+    for (const { data } of results) {
+      if (data && typeof data !== "string") merged.push(...(data.data || []));
+    }
+    const map = new Map<number, any>();
+    for (const f of merged) map.set(f.id, f);
+    setItems(
+      [...map.values()].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    );
+    setLoading(false);
+  };
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function toggleTop(f: any) {
+    const next = f.top === 1 ? 0 : 1;
+    const { error } = await client.feed
+      .top({ id: f.id })
+      .post({ top: next }, { headers: headersWithAuth() });
+    if (!error) {
+      f.top = next;
+      setItems([...items]);
+      Cache.with().clear();
+    } else {
+      showAlert("操作失败");
+    }
+  }
+  async function del(f: any) {
+    if (!window.confirm(`确定删除《${f.title}》？此操作不可恢复`)) return;
+    const { error } = await client
+      .feed({ id: f.id })
+      .delete({ headers: headersWithAuth() });
+    if (!error) {
+      setItems(items.filter((x) => x.id !== f.id));
+      Cache.with().clear();
+    } else {
+      showAlert("删除失败");
+    }
+  }
+  return (
+    <div className="bg-w rounded-2xl shadow-xl shadow-light p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-semibold text-lg">{t("manage.title") || "文章管理"}</span>
+        <button onClick={fetchAll} className="text-theme text-sm flex items-center gap-1">
+          <i className="ri-refresh-line" /> 刷新
+        </button>
+      </div>
+      {loading ? (
+        <div className="text-neutral-500 text-sm py-4">加载中…</div>
+      ) : (
+        <div className="flex flex-col">
+          {items.map((f) => (
+            <div
+              key={f.id}
+              className="flex items-center gap-3 py-2 border-b border-neutral-100"
+            >
+              <span
+                className={`text-xs px-2 py-0.5 rounded ${
+                  f.draft === 1
+                    ? "bg-amber-100 text-amber-700"
+                    : f.listed === 0
+                    ? "bg-neutral-200 text-neutral-600"
+                    : "bg-green-100 text-green-700"
+                }`}
+              >
+                {f.draft === 1 ? "草稿" : f.listed === 0 ? "未列出" : "已发布"}
+              </span>
+              <Link
+                href={`/feed/${f.alias || f.id}`}
+                className="flex-1 truncate text-theme"
+              >
+                {f.title}
+              </Link>
+              <button
+                onClick={() => toggleTop(f)}
+                title="置顶"
+                className="text-neutral-500"
+              >
+                <i
+                  className={f.top === 1 ? "ri-pushpin-fill" : "ri-pushpin-line"}
+                />
+              </button>
+              <Link href={`/writing/${f.id}`} className="text-neutral-500">
+                <i className="ri-edit-line" />
+              </Link>
+              <button onClick={() => del(f)} className="text-red-500">
+                <i className="ri-delete-bin-line" />
+              </button>
+            </div>
+          ))}
+          {items.length === 0 && (
+            <div className="text-neutral-500 text-sm py-4">暂无文章</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 写作页面
 export function WritingPage({ id }: { id?: number }) {
@@ -409,6 +529,7 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:type" content="article" />
         <meta property="og:url" content={document.URL} />
       </Helmet>
+      <ManageList />
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">

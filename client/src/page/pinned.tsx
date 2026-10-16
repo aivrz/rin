@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Helmet } from "react-helmet";
 import { FeedCard } from "../components/feed_card";
 import { PyqCoverHeader } from "../components/pyq_cover";
 import { Waiting } from "../components/loading";
+import { Seo } from "../components/seo";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 import { useTranslation } from "react-i18next";
@@ -25,7 +25,7 @@ export function PinnedPage() {
     }, []);
     return (
         <main className="pyq-main">
-            <Helmet><title>{`${t('pinned')} - ${process.env.NAME}`}</title></Helmet>
+            <Seo title={t('pinned')} description="本站置顶精选动态汇总" />
             <PyqCoverHeader />
             <div className="pyq-nrbk">
                 <div className="pyq-page-title">{t('pinned')}</div>

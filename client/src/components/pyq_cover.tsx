@@ -70,7 +70,7 @@ export function PyqCoverHeader() {
                         <h4>{name}</h4>
                         {desc && <p className="pyq-main-head-headimg-qm">{desc}</p>}
                     </div>
-                    <Link href="/nav" title="全站导航">
+                    <Link href="/timeline" title="时间轴">
                         {avatar
                             ? <img src={avatar} alt="头像" referrerPolicy="no-referrer" />
                             : <div style={{ width: 72, height: 72, borderRadius: 8, border: "3px solid var(--cobg)", background: "var(--imgbgy)" }} />}

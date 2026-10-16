@@ -1,10 +1,10 @@
 import { useContext, useEffect, useRef, useState } from "react"
-import { Helmet } from 'react-helmet'
 import { Link, useSearch } from "wouter"
 import { FeedCard } from "../components/feed_card"
 import { PyqCoverHeader } from "../components/pyq_cover"
 import { PinnedBar } from "../components/pinned_bar"
 import { Waiting } from "../components/loading"
+import { Seo } from "../components/seo"
 import { client } from "../main"
 import { ProfileContext } from "../state/profile"
 import { headersWithAuth } from "../utils/auth"
@@ -107,14 +107,17 @@ export function FeedsPage() {
 
     return (
         <>
-            <Helmet>
-                <title>{`${t('article.title')} - ${process.env.NAME}`}</title>
-                <meta property="og:site_name" content={siteName} />
-                <meta property="og:title" content={t('article.title')} />
-                <meta property="og:image" content={process.env.AVATAR} />
-                <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
-            </Helmet>
+            <Seo
+                description={process.env.DESCRIPTION}
+                image={process.env.AVATAR}
+                jsonLd={{
+                    "@context": "https://schema.org",
+                    "@type": "WebSite",
+                    "name": siteName,
+                    "url": typeof document !== 'undefined' ? document.location.origin : '',
+                    "description": process.env.DESCRIPTION || siteName
+                }}
+            />
             <Waiting for={items.length > 0 || status === 'idle'}>
                 <main className="pyq-main">
                     <PyqCoverHeader />

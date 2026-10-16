@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { Helmet } from 'react-helmet'
 import { useTranslation } from "react-i18next"
 import { useSearch } from "wouter"
 import { FeedCard } from "../components/feed_card"
 import { PyqCoverHeader } from "../components/pyq_cover"
 import { Waiting } from "../components/loading"
+import { Seo } from "../components/seo"
 import { client } from "../main"
 import { headersWithAuth } from "../utils/auth"
-import { siteName } from "../utils/constants"
 import { tryInt } from "../utils/int"
 
 export function SearchPage({ keyword }: { keyword: string }) {
@@ -110,14 +109,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
     return (
         <>
-            <Helmet>
-                <title>{`${title} - ${process.env.NAME}`}</title>
-                <meta property="og:site_name" content={siteName} />
-                <meta property="og:title" content={title} />
-                <meta property="og:image" content={process.env.AVATAR} />
-                <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
-            </Helmet>
+            <Seo title={title} description={`搜索“${keyword}”的相关文章`} image={process.env.AVATAR} />
             <Waiting for={items.length > 0 || status === 'idle'}>
                 <main className="pyq-main">
                     <PyqCoverHeader />

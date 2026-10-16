@@ -16,21 +16,22 @@ export function FeedService() {
         .use(setup())
         .group('/feed', (group) =>
             group
-                .get('/', async ({ admin, set, uid, query: { page, limit, type } }) => {
+                .get('/', async ({ admin, set, uid, anonUid, query: { page, limit, type } }) => {
                     if ((type === 'draft' || type === 'unlisted') && !admin) {
                         set.status = 403;
                         return 'Permission denied';
                     }
+                    const actor = uid ?? anonUid;
                     const cache = PublicCache();
                     const page_num = (page ? page > 0 ? page : 1 : 1) - 1;
                     const limit_num = limit ? +limit > 50 ? 50 : +limit : 20;
                     const cacheKey = `feeds_${type}_${page_num}_${limit_num}`;
                     const cached = await cache.get(cacheKey);
                     if (cached) {
-                        // liked 与用户相关，不能缓存进共享数据；命中后按当前 uid 重新计算
-                        if (uid) {
+                        // liked 与用户相关，不能缓存进共享数据；命中后按当前 actor 重新计算
+                        if (actor) {
                             const ids = (cached.data as { id: number }[]).map((f) => f.id);
-                            const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+                            const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, actor), inArray(likes.feedId, ids)));
                             const likedSet = new Set(my.map(r => r.feedId));
                             return {
                                 ...cached,
@@ -86,8 +87,8 @@ export function FeedService() {
                     const likeMap = new Map<number, number>();
                     for (const r of likeAgg) likeMap.set(r.feedId, r.c);
                     let likedSet: Set<number> | null = null;
-                    if (uid) {
-                        const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+                    if (actor) {
+                        const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, actor), inArray(likes.feedId, ids)));
                         likedSet = new Set(my.map(r => r.feedId));
                     }
                     const feed_list = raw_list.map(f => ({ ...f, likes: likeMap.get(f.id) ?? 0 }));
@@ -103,8 +104,8 @@ export function FeedService() {
                     }
                     if (type === undefined || type === 'normal' || type === '')
                         await cache.set(cacheKey, data);
-                    // liked 与用户相关，仅按当前 uid 附加到返回结果，不写入缓存
-                    if (uid && likedSet) {
+                    // liked 与用户相关，仅按当前 actor 附加到返回结果，不写入缓存
+                    if (actor && likedSet) {
                         data.data = data.data.map((f) => ({ ...f, liked: likedSet.has(f.id) }));
                     }
                     return data
@@ -182,7 +183,7 @@ export function FeedService() {
                         tags: t.Array(t.String())
                     })
                 })
-                .get('/:id', async ({ uid, admin, set, headers, params: { id } }) => {
+                .get('/:id', async ({ uid, anonUid, admin, set, headers, params: { id } }) => {
                     const id_num = parseInt(id);
                     const cache = PublicCache();
                     const cacheKey = `feed_${id}`;
@@ -253,8 +254,9 @@ export function FeedService() {
                     });
                     const comment_count = await db.select({ count: count() }).from(comments).where(eq(comments.feedId, feed.id));
                     const likeAgg = await db.select({ c: count() }).from(likes).where(eq(likes.feedId, feed.id));
-                    const liked = uid ? !!(await db.query.likes.findFirst({
-                        where: and(eq(likes.feedId, feed.id), eq(likes.userId, uid))
+                    const actor = uid ?? anonUid;
+                    const liked = actor ? !!(await db.query.likes.findFirst({
+                        where: and(eq(likes.feedId, feed.id), eq(likes.userId, actor))
                     })) : false;
                     return {
                         ...data,
@@ -342,33 +344,35 @@ export function FeedService() {
                     })
                 })
                 // 点赞（erphplogin 风格社交互动）：GET 返回总数与当前用户是否已赞，POST 切换点赞态
-                .get('/:id/like', async ({ params: { id }, uid }) => {
+                .get('/:id/like', async ({ params: { id }, uid, anonUid }) => {
+                    const actor = uid ?? anonUid;
                     const feed = await db.query.feeds.findFirst({
                         where: or(eq(feeds.id, parseInt(id) || 0), eq(feeds.alias, id))
                     });
                     if (!feed) return { count: 0, liked: false };
                     const feedId = feed.id;
                     const c = await db.select({ c: count() }).from(likes).where(eq(likes.feedId, feedId));
-                    const liked = uid ? !!(await db.query.likes.findFirst({
-                        where: and(eq(likes.feedId, feedId), eq(likes.userId, uid))
+                    const liked = actor ? !!(await db.query.likes.findFirst({
+                        where: and(eq(likes.feedId, feedId), eq(likes.userId, actor))
                     })) : false;
                     return { count: c[0]?.c ?? 0, liked };
                 })
-                .post('/:id/like', async ({ params: { id }, uid, set }) => {
-                    if (!uid) { set.status = 401; return 'Unauthorized'; }
+                .post('/:id/like', async ({ params: { id }, uid, anonUid, set }) => {
+                    const actor = uid ?? anonUid;
+                    if (actor === undefined) { set.status = 401; return 'Unauthorized'; }
                     const feed = await db.query.feeds.findFirst({
                         where: or(eq(feeds.id, parseInt(id) || 0), eq(feeds.alias, id))
                     });
                     if (!feed) { set.status = 404; return 'Not found'; }
                     const feedId = feed.id;
                     const existing = await db.query.likes.findFirst({
-                        where: and(eq(likes.feedId, feedId), eq(likes.userId, uid))
+                        where: and(eq(likes.feedId, feedId), eq(likes.userId, actor))
                     });
                     if (existing) {
                         await db.delete(likes).where(eq(likes.id, existing.id));
                         return { liked: false };
                     }
-                    await db.insert(likes).values({ feedId, userId: uid });
+                    await db.insert(likes).values({ feedId, userId: actor });
                     return { liked: true };
                 })
                 .delete('/:id', async ({ admin, set, uid, params: { id } }) => {
@@ -389,7 +393,7 @@ export function FeedService() {
                     return 'Deleted';
                 })
         )
-        .get('/search/:keyword', async ({ admin, uid, params: { keyword }, query: { page, limit } }) => {
+        .get('/search/:keyword', async ({ admin, uid, anonUid, params: { keyword }, query: { page, limit } }) => {
             keyword = decodeURI(keyword);
             const cache = PublicCache();
             const page_num = (page ? page > 0 ? page : 1 : 1) - 1;
@@ -440,8 +444,9 @@ export function FeedService() {
             const likeMap = new Map<number, number>();
             for (const r of likeAgg) likeMap.set(r.feedId, r.c);
             let likedSet: Set<number> | null = null;
-            if (uid) {
-                const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, uid), inArray(likes.feedId, ids)));
+            const actor = uid ?? anonUid;
+            if (actor) {
+                const my = await db.select({ feedId: likes.feedId }).from(likes).where(and(eq(likes.userId, actor), inArray(likes.feedId, ids)));
                 likedSet = new Set(my.map(r => r.feedId));
             }
             const feed_list = raw_list.map(f => ({ ...f, likes: likeMap.get(f.id) ?? 0, liked: likedSet ? likedSet.has(f.id) : false }));
