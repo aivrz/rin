@@ -12,7 +12,7 @@ export function ScanPanel() {
     useEffect(() => {
         fetch("/ews/qrcode")
             .then(r => r.json())
-            .then(d => { if (d && d.qrcodeUrl) setQrcode(d.qrcodeUrl); })
+            .then((d: any) => { if (d && d.qrcodeUrl) setQrcode(d.qrcodeUrl); })
             .catch(() => { });
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, []);

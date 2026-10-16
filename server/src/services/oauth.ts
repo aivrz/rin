@@ -13,6 +13,8 @@ type Provider = 'qq' | 'weibo' | 'wechat';
 const PROVIDERS: Record<Provider, {
     authorize: string;
     token: string;
+    openidUrl?: string;
+    userInfo: string;
     scope: string;
     clientIdEnv: string;
     secretEnv: string;
@@ -20,6 +22,8 @@ const PROVIDERS: Record<Provider, {
     qq: {
         authorize: 'https://graph.qq.com/oauth2.0/authorize',
         token: 'https://graph.qq.com/oauth2.0/token',
+        openidUrl: 'https://graph.qq.com/oauth2.0/me',
+        userInfo: 'https://graph.qq.com/user/get_user_info',
         scope: 'get_user_info',
         clientIdEnv: 'QQ_APPID',
         secretEnv: 'QQ_APPKEY',
@@ -27,6 +31,7 @@ const PROVIDERS: Record<Provider, {
     weibo: {
         authorize: 'https://api.weibo.com/oauth2/authorize',
         token: 'https://api.weibo.com/oauth2/access_token',
+        userInfo: 'https://api.weibo.com/2/users/show.json',
         scope: 'email',
         clientIdEnv: 'WEIBO_APPKEY',
         secretEnv: 'WEIBO_APPSECRET',
@@ -34,6 +39,7 @@ const PROVIDERS: Record<Provider, {
     wechat: {
         authorize: 'https://open.weixin.qq.com/connect/oauth2/authorize',
         token: 'https://api.weixin.qq.com/sns/oauth2/access_token',
+        userInfo: 'https://api.weixin.qq.com/sns/userinfo',
         scope: 'snsapi_userinfo',
         clientIdEnv: 'WECHAT_APPID',
         secretEnv: 'WECHAT_APPSECRET',
@@ -107,7 +113,7 @@ export function OAuthService() {
             set.headers['Set-Cookie'] = [
                 `oauth_state=${state}; Path=/; Max-Age=600; SameSite=Lax`,
                 `redirect_to=${encodeURIComponent(refererOrigin)}; Path=/; Max-Age=600; SameSite=Lax`,
-            ];
+            ].join(', ');
             const authUrl = `${cfg.authorize}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${cfg.scope}`;
             set.redirect = provider === 'wechat' ? `${authUrl}#wechat_redirect` : authUrl;
         }, { params: t.Object({ provider: t.String() }) })

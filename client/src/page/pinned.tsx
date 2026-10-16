@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet";
-import { Link } from "wouter";
 import { FeedCard } from "../components/feed_card";
 import { PyqCoverHeader } from "../components/pyq_cover";
 import { Waiting } from "../components/loading";
