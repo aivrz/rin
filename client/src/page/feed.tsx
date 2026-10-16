@@ -9,6 +9,7 @@ import { Waiting } from "../components/loading";
 import { Markdown } from "../components/markdown";
 import { FeedCard } from "../components/feed_card";
 import { PyqCoverHeader } from "../components/pyq_cover";
+import { PyqFloat } from "../components/pyq_float";
 import { PyqMusicCard, PyqVideoEmbed, extractMedia } from "../components/pyq_media";
 import { Seo } from "../components/seo";
 import { client } from "../main";
@@ -260,6 +261,7 @@ export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, c
       </main>
       <AlertUI />
       <ConfirmUI />
+      <PyqFloat />
       <FeedLoginModal />
     </Waiting>
   );
@@ -317,7 +319,8 @@ function CommentInput({
   onRefresh: () => void;
 }) {
   const { t } = useTranslation();
-  const [content, setContent] = useState("");
+  const draftKey = "rin_comment_draft_" + id;
+  const [content, setContent] = useState(() => sessionStorage.getItem(draftKey) || "");
   const [error, setError] = useState("");
   const { showAlert, AlertUI } = useAlert();
   const profile = useContext(ProfileContext);
@@ -329,6 +332,7 @@ function CommentInput({
   }
   function submit() {
     if (!profile) {
+      sessionStorage.setItem("rin_post_login_redirect", window.location.pathname + window.location.search);
       setIsOpened(true)
       return;
     }
@@ -345,6 +349,7 @@ function CommentInput({
           setError(errorHumanize(error.value as string));
         } else {
           setContent("");
+          sessionStorage.removeItem(draftKey);
           setError("");
           showAlert(t("comment.success"), () => {
             onRefresh();
@@ -360,15 +365,15 @@ function CommentInput({
           id="comment"
           placeholder={t("comment.placeholder.title")}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => { setContent(e.target.value); sessionStorage.setItem(draftKey, e.target.value); }}
         />
         <button className="pyq-btn-theme" onClick={submit}>
           {t("comment.submit")}
         </button>
       </>) : (
         <div style={{ textAlign: "center", padding: "12px 0" }}>
-          <button className="pyq-btn-theme" onClick={() => setIsOpened(true)}>
-            {t("login.required")}
+          <button className="pyq-btn-theme" onClick={() => { sessionStorage.setItem("rin_post_login_redirect", window.location.pathname + window.location.search); setIsOpened(true); }}>
+            登录后评价
           </button>
         </div>
       )}

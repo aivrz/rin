@@ -15,7 +15,12 @@ export function CallbackPage() {
             client.user.profile.get({
                 headers: headersWithAuth()
             }).then(({ data }) => {
-                if (data && typeof data !== 'string' && data.permission) {
+                // 评论流程触发登录时，记下原文章页，登录后跳回以保留评论草稿
+                const redirect = sessionStorage.getItem('rin_post_login_redirect');
+                if (redirect && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.includes(':')) {
+                    sessionStorage.removeItem('rin_post_login_redirect');
+                    setLocation(redirect);
+                } else if (data && typeof data !== 'string' && data.permission) {
                     setLocation("/writing");
                 } else {
                     setLocation("/");

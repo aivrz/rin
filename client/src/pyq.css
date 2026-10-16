@@ -2108,10 +2108,16 @@ body.dark-theme .pyq-zanp,
     padding: 9px 14px;
     font-size: 15px;
     outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pyq-comment-input input:hover {
+    border-color: var(--theme);
 }
 
 .pyq-comment-input input:focus {
     border-color: var(--theme);
+    box-shadow: 0 0 0 3px var(--themetm);
 }
 
 .pyq-comment-input button {

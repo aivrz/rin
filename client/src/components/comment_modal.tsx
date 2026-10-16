@@ -21,6 +21,7 @@ export function CommentModal({ feedId, open, onClose, onPosted }: { feedId: stri
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const draftKey = 'rin_comment_draft_' + feedId;
 
     useEffect(() => {
         if (!open) return;
@@ -34,15 +35,28 @@ export function CommentModal({ feedId, open, onClose, onPosted }: { feedId: stri
             .finally(() => setLoading(false));
     }, [open, feedId]);
 
+    // 重新打开弹窗时，恢复未登录前暂存的评论草稿
+    useEffect(() => {
+        if (!open) return;
+        const saved = sessionStorage.getItem(draftKey);
+        if (saved) setContent(saved);
+    }, [open, draftKey]);
+
     async function submit() {
         const c = content.trim();
         if (!c) return;
-        if (!profile) { setIsOpened(true); return; }
+        if (!profile) {
+            // 未登录：先记下当前文章页，登录后跳回；草稿已由输入 onChange 暂存
+            sessionStorage.setItem('rin_post_login_redirect', window.location.pathname + window.location.search);
+            setIsOpened(true);
+            return;
+        }
         setSubmitting(true);
         const { error } = await client.feed.comment({ feed: feedId }).post({ content: c }, { headers: headersWithAuth() });
         setSubmitting(false);
         if (!error) {
             setContent("");
+            sessionStorage.removeItem(draftKey);
             const { data } = await client.feed.comment({ feed: feedId }).get({ headers: headersWithAuth() });
             if (data && Array.isArray(data)) {
                 const list = data as CommentItem[];
@@ -80,11 +94,11 @@ export function CommentModal({ feedId, open, onClose, onPosted }: { feedId: stri
                 <div className="pyq-comment-input">
                     <input
                         value={content}
-                        onChange={(e) => setContent(e.target.value)}
+                        onChange={(e) => { setContent(e.target.value); sessionStorage.setItem(draftKey, e.target.value); }}
                         onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
                         placeholder={profile ? "说点什么…" : "登录后参与评论"}
                     />
-                    <button onClick={submit} disabled={submitting}>{t('comment.send') || '发送'}</button>
+                    <button onClick={submit} disabled={submitting}>{profile ? (t('comment.send') || '发送') : '登录后评价'}</button>
                 </div>
             </div>
         </div>
