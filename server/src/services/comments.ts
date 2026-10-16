@@ -13,7 +13,7 @@ import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 export function CommentService() {
     const db: DB = getDB();
     const env: Env = getEnv();
-    return new Elysia()
+    return new Elysia({ aot: false })
         .use(setup())
         .group('/feed/comment', (group) =>
             group

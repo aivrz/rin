@@ -29,7 +29,7 @@ export default {
             await ServerConfig().get('cdn_host');
         }
 
-        return await new Elysia()
+        return await new Elysia({ aot: false })
             .use(app())
             .handle(request)
     },

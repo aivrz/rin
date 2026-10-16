@@ -13,7 +13,7 @@ import { bindTagToPost } from "./tag";
 
 export function FeedService() {
     const db: DB = getDB();
-    return new Elysia()
+    return new Elysia({ aot: false })
         .use(setup())
         .group('/feed', (group) =>
             group

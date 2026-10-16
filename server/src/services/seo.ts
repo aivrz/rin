@@ -18,7 +18,7 @@ export function SEOService() {
     const folder = env.S3_CACHE_FOLDER || 'cache/';
     const db = getDB();
     const base = (env.FRONTEND_URL || '').replace(/\/$/, '');
-    return new Elysia()
+    return new Elysia({ aot: false })
         .get('/seo/*', async ({ set, params, query }) => {
             const accessHost = await cdnAccessHost(env);
             if (!accessHost) {

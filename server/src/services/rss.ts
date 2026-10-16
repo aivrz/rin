@@ -20,7 +20,7 @@ import { accessHost as cdnAccessHost, cdnHost } from "../utils/cdn";
 export function RSSService() {
     const env: Env = getEnv();
     const folder = env.S3_CACHE_FOLDER || 'cache/';
-    return new Elysia()
+    return new Elysia({ aot: false })
         .get('/sub/:name', async ({ set, params: { name } }) => {
             const accessHost = await cdnAccessHost(env);
             const host = `${(accessHost.startsWith("http://") || accessHost.startsWith("https://") ? '' :'https://')}${accessHost}`;

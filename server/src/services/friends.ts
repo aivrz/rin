@@ -15,7 +15,7 @@ import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 export function FriendService() {
     const db: DB = getDB();
     const env: Env = getEnv();
-    return new Elysia()
+    return new Elysia({ aot: false })
         .use(setup())
         .group('/friend', (group) =>
             group.get('/', async ({ admin, uid }) => {

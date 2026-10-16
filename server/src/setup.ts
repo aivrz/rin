@@ -37,7 +37,7 @@ export function setup() {
             gh_client_secret
         ]
     })
-    return new Elysia({ name: 'setup' })
+    return new Elysia({ name: 'setup', aot: false })
         .state('anyUser', anyUser)
         .use(oauth)
         .use(
@@ -46,6 +46,8 @@ export function setup() {
                 secret: jwt_secret,
                 schema: t.Object({
                     id: t.Integer(),
+                    username: t.Optional(t.String()),
+                    permission: t.Optional(t.Integer()),
                 })
             })
         )

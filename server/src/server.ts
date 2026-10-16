@@ -13,7 +13,7 @@ import { ConfigService } from './services/config';
 import { WechatService } from './services/wechat';
 import { OAuthService } from './services/oauth';
 
-export const app = () => new Elysia()
+export const app = () => new Elysia({ aot: false })
     .use(cors({
         aot: false,
         origin: '*',

@@ -15,6 +15,7 @@ function buf2hex(buffer: ArrayBuffer) {
 
 export function StorageService() {
     const env: Env = getEnv();
+    const endpoint = env.S3_ENDPOINT;
     const bucket = env.S3_BUCKET;
     const folder = env.S3_FOLDER || '';
     // 图片仍物理上传到 R2（S3 兼容），但访问域名优先走七牛镜像回源 CDN_HOST（含后端设置 cdn_host）；
@@ -22,7 +23,7 @@ export function StorageService() {
     const accessKeyId = env.S3_ACCESS_KEY_ID;
     const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
     const s3 = createS3Client();
-    return new Elysia()
+    return new Elysia({ aot: false })
         .use(setup())
         .group('/storage', (group) =>
             group
