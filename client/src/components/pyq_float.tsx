@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Menu, Music, ArrowUp, X } from "lucide-react";
+import { Menu, Music, X } from "lucide-react";
 
 // 仿 pyq 右下角悬浮菜单 + 全局音乐播放器。
 export function PyqFloat() {

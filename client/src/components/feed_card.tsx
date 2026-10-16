@@ -19,7 +19,7 @@ function gridClass(n: number): string {
 }
 
 export function FeedCard({
-    id, user, summary, content, images, hashtags, createdAt, updatedAt, top, draft, listed, likes, comments
+    id, user, summary, content, images, hashtags, createdAt, updatedAt, top, draft, listed, likes, liked, comments
 }: {
     id: string,
     user?: { id: number, username: string, avatar: string },

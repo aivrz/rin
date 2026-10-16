@@ -112,7 +112,7 @@ export function OAuthService() {
             const refererOrigin = headers.referer ? new URL(headers.referer).origin : origin;
             // 存原始 origin（与 user.ts 的 GitHub 流程保持一致），不要在 cookie 里编码，
             // 否则回调读取时会被二次解码导致回跳 URL 错乱。
-            set.headers['Set-Cookie'] = [
+            (set.headers as Record<string, unknown>)['Set-Cookie'] = [
                 `oauth_state=${state}; Path=/; Max-Age=600; SameSite=Lax`,
                 `redirect_to=${refererOrigin}; Path=/; Max-Age=600; SameSite=Lax`,
             ];

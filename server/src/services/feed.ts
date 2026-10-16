@@ -105,7 +105,7 @@ export function FeedService() {
                         await cache.set(cacheKey, data);
                     // liked 与用户相关，仅按当前 uid 附加到返回结果，不写入缓存
                     if (uid && likedSet) {
-                        data.data = (data.data as { id: number; liked?: boolean }[]).map((f) => ({ ...f, liked: likedSet.has(f.id) }));
+                        data.data = data.data.map((f) => ({ ...f, liked: likedSet.has(f.id) }));
                     }
                     return data
                 }, {

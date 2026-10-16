@@ -50,9 +50,11 @@ type Feed = {
     user: { id: number; username: string; avatar: string | null };
   }[];
   commentCount?: number;
+  likes?: number;
+  liked?: boolean;
 };
 
-export function FeedPage({ id, _TOC, clean }: { id: string, _TOC: () => JSX.Element, clean: (id: string) => void }) {
+export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, clean: (id: string) => void }) {
   const { t } = useTranslation();
   const profile = useContext(ProfileContext);
   const [feed, setFeed] = useState<Feed>();
@@ -530,7 +532,7 @@ function CommentItem({
   );
 }
 
-function RelatedArticles({ id, hashtags }: { id: number, hashtags: { id: number, name: string }[] }) {
+function RelatedArticles({ id }: { id: number, hashtags: { id: number, name: string }[] }) {
   const [list, setList] = useState<any[]>([]);
   useEffect(() => {
     client.feed.index.get({
