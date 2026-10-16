@@ -80,7 +80,7 @@ export const ewsLogs = sqliteTable("ews_logs", {
 export const likes = sqliteTable("likes", {
     id: integer("id").primaryKey({ autoIncrement: true }),
     feedId: integer("feed_id").references(() => feeds.id, { onDelete: 'cascade' }).notNull(),
-    userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    userId: integer("user_id").notNull(),
     createdAt: created_at,
 });
 

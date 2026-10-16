@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
@@ -6,6 +6,7 @@ import { HashTag } from "./hashtag";
 import { CommentModal } from "./comment_modal";
 import { useLike } from "../hooks/useLike";
 import { useLoginModal } from "../hooks/useLoginModal";
+import { ProfileContext } from "../state/profile";
 
 function stripMdImages(text: string): string {
     return text.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -37,7 +38,8 @@ export function FeedCard({
     comments?: { user: { username: string }, content: string }[],
 }) {
     const { t } = useTranslation();
-    const { LoginModal } = useLoginModal();
+    const { LoginModal, setIsOpened } = useLoginModal();
+    const profile = useContext(ProfileContext);
     // 列表已返回 likes/liked，直接用初始值，避免逐卡片请求
     const like = useLike(id, { count: likes || 0, liked: liked || false, fetch: false });
     const [lightbox, setLightbox] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export function FeedCard({
                                     <i className={like.liked ? "ri-heart-3-fill" : "ri-heart-3-line"} style={like.liked ? { color: "#fa5151", transform: "scale(1.15)", transition: "transform .15s ease" } : { transform: "scale(1)", transition: "transform .15s ease" }} />
                                     {like.count > 0 ? like.count : ""}
                                 </span>
-                                <button className="pyq-content-right-time-right-left-y" onClick={() => setCommentOpen(true)}>
+                                <button className="pyq-content-right-time-right-left-y" onClick={() => { if (!profile) setIsOpened(true); else setCommentOpen(true); }}>
                                     <i className="ri-message-3-line" />
                                     {(cmtList && cmtList.length > 0) ? cmtList.length : ""}
                                 </button>

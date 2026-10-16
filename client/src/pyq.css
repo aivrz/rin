@@ -938,14 +938,181 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
 .pyq-float-player {
     position: fixed;
     right: 16px;
-    bottom: 84px;
-    z-index: 61;
-    width: 220px;
-    background: var(--cobg);
-    border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    bottom: 132px;
+    z-index: 95;
+    width: min(340px, calc(100vw - 32px));
+    background: var(--bgwhite);
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    display: none;
+    max-height: min(70vh, 520px);
+}
+
+.pyq-music-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--fgxys);
+}
+
+.pyq-music-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--textqh);
+}
+
+.pyq-music-sub {
+    font-size: 12px;
+    color: var(--texths);
+    margin-top: 2px;
+}
+
+.pyq-music-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--texths);
+    font-size: 18px;
+    line-height: 1;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    transition: background .15s ease, color .15s ease;
+}
+
+.pyq-music-close:hover {
+    background: var(--secondary);
+    color: var(--textqh);
+}
+
+.pyq-music-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.pyq-music-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.pyq-music-item:hover {
+    background: var(--secondary);
+}
+
+.pyq-music-item.active {
+    background: var(--themetm);
+}
+
+.pyq-music-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--imgbgy);
+}
+
+.pyq-music-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--texths);
+    font-size: 18px;
+}
+
+.pyq-music-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.pyq-music-title {
+    font-size: 14px;
+    color: var(--textqh);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pyq-music-artist {
+    font-size: 12px;
+    color: var(--texths);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pyq-music-playing {
+    color: var(--theme);
+    margin-left: auto;
+}
+
+.pyq-music-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--texths);
+    font-size: 13px;
+}
+
+.pyq-music-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--fgxys);
+}
+
+.pyq-music-bar button {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--textqh);
+    font-size: 18px;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s ease, color .15s ease;
+}
+
+.pyq-music-bar button:hover {
+    background: var(--secondary);
+}
+
+.pyq-music-play {
+    color: #fff !important;
+    background: var(--theme) !important;
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 20px !important;
+}
+
+.pyq-music-play:hover {
+    background: var(--theme) !important;
+    opacity: .9;
+}
+
+.pyq-music-now {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--texths);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .pyq-float-cover {
