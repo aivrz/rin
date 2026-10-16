@@ -37,6 +37,20 @@ const jwtSecret = env("JWT_SECRET")
 const githubClientId = env("RIN_GITHUB_CLIENT_ID")
 const githubClientSecret = env("RIN_GITHUB_CLIENT_SECRET")
 
+// 第三方登录（erphplogin 整合）
+const qqAppId = env("QQ_APPID")
+const qqAppKey = env("QQ_APPKEY")
+const weiboAppKey = env("WEIBO_APPKEY")
+const weiboAppSecret = env("WEIBO_APPSECRET")
+const wechatAppId = env("WECHAT_APPID")
+const wechatAppSecret = env("WECHAT_APPSECRET")
+// 关注公众号登录（erphp-weixin-scan 整合）
+const ewsAppId = env("EWS_APPID")
+const ewsAppSecret = env("EWS_APPSECRET")
+const ewsToken = env("EWS_TOKEN")
+const ewsQrcodeUrl = env("EWS_QRCODE_URL")
+const cdnHost = env("CDN_HOST", "")
+
 Bun.write('wrangler.toml', stripIndent(`
 #:schema node_modules/wrangler/config-schema.json
 name = "${WORKER_NAME}"
@@ -60,6 +74,8 @@ S3_FORCE_PATH_STYLE = "${S3_FORCE_PATH_STYLE}"
 WEBHOOK_URL = "${WEBHOOK_URL}"
 RSS_TITLE = "${RSS_TITLE}"
 RSS_DESCRIPTION = "${RSS_DESCRIPTION}"
+CDN_HOST = "${cdnHost}"
+EWS_QRCODE_URL = "${ewsQrcodeUrl}"
 
 [placement]
 mode = "smart"
@@ -159,6 +175,17 @@ await putSecret('S3_SECRET_ACCESS_KEY', secretAccessKey)
 await putSecret('RIN_GITHUB_CLIENT_ID', githubClientId)
 await putSecret('RIN_GITHUB_CLIENT_SECRET', githubClientSecret)
 await putSecret('JWT_SECRET', jwtSecret)
+// 第三方登录（erphplogin 整合）
+await putSecret('QQ_APPID', qqAppId)
+await putSecret('QQ_APPKEY', qqAppKey)
+await putSecret('WEIBO_APPKEY', weiboAppKey)
+await putSecret('WEIBO_APPSECRET', weiboAppSecret)
+await putSecret('WECHAT_APPID', wechatAppId)
+await putSecret('WECHAT_APPSECRET', wechatAppSecret)
+// 关注公众号登录（erphp-weixin-scan 整合）
+await putSecret('EWS_APPID', ewsAppId)
+await putSecret('EWS_APPSECRET', ewsAppSecret)
+await putSecret('EWS_TOKEN', ewsToken)
 
 console.log(`Put Done.`)
 console.log(`----------------------------`)

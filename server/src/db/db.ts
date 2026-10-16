@@ -13,6 +13,7 @@ export interface Env {
     S3_ACCESS_KEY_ID: string,
     S3_SECRET_ACCESS_KEY: string,
     S3_ACCESS_HOST: string,
+    CDN_HOST: string,
     S3_BUCKET: string,
     S3_FOLDER: string,
     S3_CACHE_FOLDER: string,

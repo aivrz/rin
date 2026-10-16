@@ -48,9 +48,32 @@ export const users = sqliteTable("users", {
     username: text("username").notNull(),
     openid: text("openid").notNull(),
     avatar: text("avatar"),
+    weixinid: text("weixinid"),
     permission: integer("permission").default(0),
     createdAt: created_at,
     updatedAt: updated_at,
+});
+
+// 多平台 OAuth 身份映射（GitHub/QQ/微信网页授权/微博/公众号扫码）
+export const oauthIdentities = sqliteTable("oauth_identities", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+    provider: text("provider").notNull(), // 'github' | 'qq' | 'weixin' | 'weibo' | 'ews'
+    openid: text("openid").notNull(),
+    avatar: text("avatar"),
+});
+
+// 关注公众号登录：验证码（scene_id）与微信 openid 的临时映射，5 分钟有效
+export const ewsLogs = sqliteTable("ews_logs", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sceneId: text("scene_id"),
+    openid: text("openid"),
+    unionid: text("unionid"),
+    accessToken: text("access_token"),
+    nickname: text("nickname"),
+    avatar: text("avatar"),
+    createTime: text("create_time"),
+    updateTime: text("update_time"),
 });
 
 export const comments = sqliteTable("comments", {

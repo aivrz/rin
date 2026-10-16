@@ -21,6 +21,25 @@ WEBHOOK_URL = "https://<YourWebhookURL>"
 RSS_TITLE = "Rin Development Environment"
 RSS_DESCRIPTION = "Development Environment"
 
+# 七牛云镜像回源加速：图片物理仍存 R2，但访问域名替换为七牛 CDN 域名（首访由七牛镜像回源 R2 对象）。
+# 留空则回退到 S3_ACCESS_HOST（本地开发可用）。生产环境填 https://<your-qiniu-cdn-domain>。
+CDN_HOST = ""
+
+# ============ 新增 Secret（通过 `wrangler secret put <NAME>` 设置，勿写入文件） ============
+# 第三方登录（erphplogin 整合）：
+#   QQ_APPID / QQ_APPKEY                 —— QQ 互联应用凭证
+#   WEIBO_APPKEY / WEIBO_APPSECRET       —— 微博开放平台凭证
+#   WECHAT_APPID / WECHAT_APPSECRET      —— 微信网页授权（需认证服务号资质）
+# 关注公众号登录（erphp-weixin-scan 整合）：
+#   EWS_APPID / EWS_APPSECRET            —— 公众号 AppID/AppSecret（订阅号即可）
+#   EWS_TOKEN                            —— 微信消息回调校验 Token（自定义）
+#   EWS_QRCODE_URL                       —— 后台配置的「关注二维码」图片地址
+# 七牛云存储（若改为直传七牛而非仅镜像回源，可改用七牛 S3 兼容端点）：
+#   QINIU_S3_ENDPOINT / QINIU_ACCESS_KEY / QINIU_SECRET_KEY / QINIU_BUCKET
+#
+# 客户端构建：生产构建前设置 ASSET_BASE=https://<your-qiniu-cdn-domain> 让 JS/CSS 走七牛域名（dev 回退 '/'）。
+
+
 [[d1_databases]]
 binding = "DB"
 database_name = "rin"

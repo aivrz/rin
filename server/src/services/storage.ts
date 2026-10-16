@@ -17,7 +17,9 @@ export function StorageService() {
     const endpoint = env.S3_ENDPOINT;
     const bucket = env.S3_BUCKET;
     const folder = env.S3_FOLDER || '';
-    const accessHost = env.S3_ACCESS_HOST || endpoint;
+    // 图片仍物理上传到 R2（S3 兼容），但访问域名优先走七牛镜像回源 CDN_HOST；
+    // 未配置 CDN_HOST 时回退到原 S3_ACCESS_HOST / endpoint，保证本地开发可用。
+    const accessHost = env.CDN_HOST || env.S3_ACCESS_HOST || endpoint;
     const accessKeyId = env.S3_ACCESS_KEY_ID;
     const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
     const s3 = createS3Client();

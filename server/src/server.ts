@@ -10,6 +10,8 @@ import { StorageService } from './services/storage';
 import { TagService } from './services/tag';
 import { UserService } from './services/user';
 import { ConfigService } from './services/config';
+import { WechatService } from './services/wechat';
+import { OAuthService } from './services/oauth';
 
 export const app = () => new Elysia({ aot: false })
     .use(cors({
@@ -36,6 +38,8 @@ export const app = () => new Elysia({ aot: false })
     .use(SEOService())
     .use(RSSService())
     .use(ConfigService())
+    .use(WechatService())
+    .use(OAuthService())
     .get('/', () => `Hi`)
     .onError(({ path, params, code }) => {
         if (code === 'NOT_FOUND')

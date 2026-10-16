@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import ReactModal from "react-modal";
 import { Icon } from "../components/icon";
 import { Input } from "../components/input";
+import { ScanPanel } from "../components/scan_panel";
 import { oauth_url } from "../main";
 
 export function useLoginModal(onClose?: () => void) {
@@ -65,7 +66,21 @@ export function useLoginModal(onClose?: () => void) {
                                 window.location.href = `${oauth_url}`
                             }} hover={true} />
                         </div>
+                        {/* erphplogin 整合：QQ / 微博 / 微信网页授权（微信需认证服务号资质） */}
+                        <div className="flex flex-row items-center gap-2">
+                            <button onClick={() => { window.location.href = '/user/qq' }}
+                                className="rounded-full px-3 py-1 text-xs text-white cursor-pointer"
+                                style={{ background: '#12B7F5' }}>QQ 登录</button>
+                            <button onClick={() => { window.location.href = '/user/weibo' }}
+                                className="rounded-full px-3 py-1 text-xs text-white cursor-pointer"
+                                style={{ background: '#E6162D' }}>微博登录</button>
+                            <button onClick={() => { window.location.href = '/user/wechat' }}
+                                title="需认证服务号资质"
+                                className="rounded-full px-3 py-1 text-xs text-white cursor-pointer"
+                                style={{ background: '#07C160' }}>微信登录</button>
+                        </div>
                     </div>
+                    <ScanPanel />
                 </div>
             </ReactModal>
         )

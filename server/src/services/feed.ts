@@ -7,7 +7,7 @@ import { feeds, visits } from "../db/schema";
 import { setup } from "../setup";
 import { ClientConfig, PublicCache } from "../utils/cache";
 import { getDB } from "../utils/di";
-import { extractImage } from "../utils/image";
+import { extractImage, extractImages } from "../utils/image";
 import { bindTagToPost } from "./tag";
 
 export function FeedService() {
@@ -66,6 +66,7 @@ export function FeedService() {
                             summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                             hashtags: hashtags.map(({ hashtag }) => hashtag),
                             avatar,
+                            images: extractImages(content),
                             ...other
                         }
                     });
@@ -351,6 +352,7 @@ export function FeedService() {
                 return {
                     summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                     hashtags: hashtags.map(({ hashtag }) => hashtag),
+                    images: extractImages(content),
                     ...other
                 }
             });

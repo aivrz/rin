@@ -2,6 +2,8 @@ import { useContext, useEffect, useRef, useState } from "react"
 import { Helmet } from 'react-helmet'
 import { Link, useSearch } from "wouter"
 import { FeedCard } from "../components/feed_card"
+import { PyqCoverHeader } from "../components/pyq_cover"
+import { PinnedBar } from "../components/pinned_bar"
 import { Waiting } from "../components/loading"
 import { client } from "../main"
 import { ProfileContext } from "../state/profile"
@@ -76,8 +78,10 @@ export function FeedsPage() {
                 <meta property="og:url" content={document.URL} />
             </Helmet>
             <Waiting for={feeds.draft.size + feeds.normal.size + feeds.unlisted.size > 0 || status === 'idle'}>
-                <main className="w-full flex flex-col justify-center items-center mb-8">
-                    <div className="wauto text-start text-black dark:text-white py-4 text-4xl font-bold">
+                <main className="pyq-main flex flex-col items-center">
+                    <PyqCoverHeader />
+                    <PinnedBar />
+                    <div className="w-full px-4 text-start text-black dark:text-white py-4 text-4xl font-bold">
                         <p>
                             {listState === 'draft' ? t('draft_bin') : listState === 'normal' ? t('article.title') : t('unlisted')}
                         </p>
@@ -98,12 +102,12 @@ export function FeedsPage() {
                         </div>
                     </div>
                     <Waiting for={status === 'idle'}>
-                        <div className="wauto flex flex-col ani-show">
+                        <div className="w-full">
                             {feeds[listState].data.map(({ id, ...feed }: any) => (
                                 <FeedCard key={id} id={id} {...feed} />
                             ))}
                         </div>
-                        <div className="wauto flex flex-row items-center mt-4 ani-show">
+                        <div className="w-full flex flex-row items-center mt-4 px-4 ani-show">
                             {page > 1 &&
                                 <Link href={`/?type=${listState}&page=${(page - 1)}`}
                                     className={`text-sm font-normal rounded-full px-4 py-2 text-white bg-theme`}>

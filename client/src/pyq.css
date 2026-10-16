@@ -1,0 +1,438 @@
+/* pyq.css —— 仿微信朋友圈（pyq）主题设计令牌与核心布局
+ * 视觉令牌逐条移植自参考主题 pengyouquan.css（仅样式重置，逻辑由 React 重写）。
+ * 暗色模式复用 Rin 既有的 [data-color-mode="dark"] 选择器，与 pyq 的 .dark-theme 等价。
+ * 微信绿主色 #09c362 / 夜间 #1aad6f；640px 居中单列信息流。 */
+
+/* ============ 设计令牌（日间） ============ */
+:root {
+    --theme: #09c362;
+    --themetm: rgba(9, 195, 98, 0.12);
+    --thetitle: #2b7de0;
+    --protext: #ff8c00;
+    --protextbg: #fff4e6;
+    --backbg: #f5f5f5;
+    --cobg: #ffffff;
+    --bganh: rgba(0, 0, 0, 0.04);
+    --textqh: #2c2c2c;
+    --textbs: #ffffff;
+    --texths: #9a9a9a;
+    --fgxys: #ededed;
+    --iconhs: #9a9a9a;
+    --iconbs: #ffffff;
+    --bodys: #f2f2f2;
+    --dzplcdfg: #f0f0f0;
+    --dbztlys: #ffffff;
+    --dbztlysh: rgba(255, 255, 255, 0);
+    --dbztlyshs: rgba(0, 0, 0, 0.25);
+    --gdwys: #cdcdcd;
+    --zsgfh: rgba(0, 0, 0, 0.05);
+    --imgbgy: #f0f0f0;
+    --menu: #ffffff;
+    --adgg: #f0f0f0;
+
+    /* 顶栏按钮令牌（吸顶滚动变色用） */
+    --topbar-btn-size: 40px;
+    --topbar-btn-icon: 20px;
+    --topbar-btn-gap: 10px;
+    --topbar-btn-radius: 12px;
+    --topbar-btn-border: 1px solid rgba(0, 0, 0, 0.05);
+    --topbar-btn-bg: rgba(255, 255, 255, 0.85);
+    --topbar-btn-icon-color: #444;
+    --topbar-btn-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --topbar-btn-transition: all 0.3s ease;
+
+    /* 圆角 / 间距令牌 */
+    --pyq-radius: 12px;
+    --pyq-gap: 4px;
+}
+
+/* ============ 设计令牌（夜间）：复用 Rin 暗色选择器 ============ */
+html.dark-theme,
+body.dark-theme,
+.dark-theme,
+[data-color-mode="dark"] {
+    --theme: #1aad6f;
+    --themetm: rgba(26, 173, 111, 0.18);
+    --thetitle: #4ea1ff;
+    --backbg: #161616;
+    --cobg: #1e1e1e;
+    --bganh: rgba(255, 255, 255, 0.06);
+    --textqh: #e6e6e6;
+    --textbs: #e6e6e6;
+    --texths: #8a8a8a;
+    --fgxys: #2c2c2c;
+    --iconhs: #8a8a8a;
+    --iconbs: #e6e6e6;
+    --bodys: #121212;
+    --dzplcdfg: #2a2a2a;
+    --dbztlys: #1e1e1e;
+    --dbztlysh: rgba(20, 20, 20, 0);
+    --dbztlyshs: rgba(0, 0, 0, 0.5);
+    --gdwys: #3a3a3a;
+    --zsgfh: rgba(255, 255, 255, 0.05);
+    --imgbgy: #2a2a2a;
+    --menu: #1e1e1e;
+    --adgg: #262626;
+
+    --topbar-btn-bg: rgba(40, 40, 40, 0.85);
+    --topbar-btn-icon-color: #ddd;
+    --topbar-btn-border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============ 布局容器 ============ */
+.centent {
+    min-height: 100vh;
+}
+
+.pyq-main {
+    max-width: 640px;
+    margin: 0 auto;
+    background: var(--bodys);
+    min-height: 100vh;
+    position: relative;
+}
+
+.pyq-nrbk {
+    padding: 10px 0 60px;
+}
+
+.pyq-homecontent {
+    padding: 0 12px;
+}
+
+/* ============ 顶部封面 + 站点资料 ============ */
+.pyq-main-head {
+    position: relative;
+}
+
+.pyq-main-head-img {
+    width: 100%;
+    height: var(--pyq-cover-h, 200px);
+    background-size: cover;
+    background-position: center;
+    background-color: var(--imgbgy);
+}
+
+.pyq-bg-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pyq-main-head-headimg {
+    position: relative;
+    padding: 0 16px;
+    margin-top: -46px;
+}
+
+.pyq-main-head-headimg-tx {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+.pyq-main-head-headimg-info {
+    text-align: right;
+    padding-bottom: 6px;
+}
+
+.pyq-main-head-headimg-info h4 {
+    color: var(--textqh);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.pyq-main-head-headimg-qm {
+    color: var(--texths);
+    font-size: 13px;
+    margin: 2px 0 0;
+}
+
+.pyq-main-head-headimg-tx > a img {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    border: 3px solid var(--cobg);
+    object-fit: cover;
+}
+
+/* ============ 吸顶导航 ============ */
+.pyq-main-head-top {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    backdrop-filter: saturate(180%) blur(12px);
+    background: var(--topbar-btn-bg);
+    border-bottom: var(--topbar-btn-border);
+}
+
+.pyq-main-head-top-left,
+.pyq-main-head-top-right {
+    display: flex;
+    align-items: center;
+    gap: var(--topbar-btn-gap);
+}
+
+.pyq-main-head-top-left-s,
+.pyq-main-head-top-right-s {
+    width: var(--topbar-btn-size);
+    height: var(--topbar-btn-size);
+    border-radius: var(--topbar-btn-radius);
+    background: var(--topbar-btn-bg);
+    border: var(--topbar-btn-border);
+    box-shadow: var(--topbar-btn-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--topbar-btn-transition);
+    color: var(--topbar-btn-icon-color);
+    font-size: var(--topbar-btn-icon);
+}
+
+.pyq-main-head-top-left-s:hover,
+.pyq-main-head-top-right-s:hover {
+    transform: scale(1.06);
+}
+
+.pyq-main-head-top-left-s img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* ============ 置顶条 ============ */
+.pyq-pinned-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--cobg);
+    border-bottom: 1px solid var(--fgxys);
+}
+
+.pyq-pinned-label {
+    flex: none;
+    font-size: 12px;
+    color: var(--texths);
+}
+
+.pyq-pinned-track {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: none;
+}
+
+.pyq-pinned-track::-webkit-scrollbar {
+    display: none;
+}
+
+.pyq-pinned-item {
+    position: relative;
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--imgbgy);
+}
+
+.pyq-pinned-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pyq-pinned-ph {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--texths);
+}
+
+.pyq-pinned-play {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    color: #fff;
+    font-size: 14px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.pyq-pinned-arrow {
+    flex: none;
+    color: var(--texths);
+    font-size: 18px;
+}
+
+/* ============ 信息流卡片（骨架，Phase 1 充实） ============ */
+.pyq-card {
+    background: var(--cobg);
+    border-radius: var(--pyq-radius);
+    padding: 12px;
+    margin: 10px 12px;
+    box-shadow: 0 1px 2px var(--zsgfh);
+}
+
+.pyq-card-head {
+    display: flex;
+    gap: 10px;
+}
+
+.pyq-card-avatar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--imgbgy);
+}
+
+.pyq-card-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.pyq-card-author {
+    color: var(--thetitle);
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.pyq-card-time {
+    color: var(--texths);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.pyq-card-text {
+    color: var(--textqh);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 8px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* 九宫格图片 */
+.pyq-grid {
+    display: grid;
+    gap: var(--pyq-gap);
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 8px;
+}
+
+.pyq-grid-1 {
+    grid-template-columns: minmax(0, 70%);
+}
+
+.pyq-grid-2,
+.pyq-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.pyq-grid-item {
+    position: relative;
+    padding-top: 100%;
+    background: var(--imgbgy);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.pyq-grid-1 .pyq-grid-item {
+    padding-top: 56%;
+}
+
+.pyq-grid-item img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 卡片底部操作条 */
+.pyq-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 8px;
+    color: var(--iconhs);
+    font-size: 14px;
+}
+
+.pyq-card-actions .pyq-act {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+/* 点赞 / 评论区 */
+.pyq-likes {
+    background: var(--bganh);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--thetitle);
+}
+
+.pyq-comments {
+    margin-top: 8px;
+    border-top: 1px solid var(--fgxys);
+    padding-top: 8px;
+}
+
+.pyq-comment {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--textqh);
+}
+
+.pyq-comment img {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: var(--imgbgy);
+}
+
+.pyq-comment .pyq-c-author {
+    color: var(--thetitle);
+    font-weight: 600;
+}
+
+/* 灯箱（图片预览，Phase 1 充实交互） */
+.pyq-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+}
+
+.pyq-lightbox img {
+    max-width: 92vw;
+    max-height: 92vh;
+    object-fit: contain;
+}

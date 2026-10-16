@@ -13,6 +13,8 @@ import { FeedsPage } from './page/feeds'
 import { FriendsPage } from './page/friends'
 import { HashtagPage } from './page/hashtag.tsx'
 import { HashtagsPage } from './page/hashtags.tsx'
+import { NavPage } from './page/nav'
+import { PinnedPage } from './page/pinned'
 import { Settings } from "./page/settings.tsx"
 import { TimelinePage } from './page/timeline'
 import { WritingPage } from './page/writing'
@@ -159,6 +161,14 @@ function App() {
                 </TipsPage>
               )}
             </RouteMe>
+
+            <Route path="/nav">
+              <NavPage />
+            </Route>
+
+            <Route path="/pinned">
+              <PinnedPage />
+            </Route>
 
             {/* Default route in a switch */}
             <Route>404: No such page!</Route>
