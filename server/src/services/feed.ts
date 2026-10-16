@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { XMLParser } from "fast-xml-parser";
 import html2md from 'html-to-md';
@@ -6,13 +6,14 @@ import type { DB } from "../_worker";
 import { comments, feeds, likes, visits } from "../db/schema";
 import { setup } from "../setup";
 import { ClientConfig, PublicCache } from "../utils/cache";
-import { getDB } from "../utils/di";
+import { getDB, getEnv } from "../utils/di";
 import { extractImage, extractImages } from "../utils/image";
+import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 import { bindTagToPost } from "./tag";
 
 export function FeedService() {
     const db: DB = getDB();
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/feed', (group) =>
             group
@@ -23,6 +24,9 @@ export function FeedService() {
                     }
                     const actor = uid ?? anonUid;
                     const cache = PublicCache();
+                    const env = getEnv();
+                    const cdn = await cdnHost(env);
+                    const from = env.S3_ACCESS_HOST;
                     const page_num = (page ? page > 0 ? page : 1 : 1) - 1;
                     const limit_num = limit ? +limit > 50 ? 50 : +limit : 20;
                     const cacheKey = `feeds_${type}_${page_num}_${limit_num}`;
@@ -35,10 +39,10 @@ export function FeedService() {
                             const likedSet = new Set(my.map(r => r.feedId));
                             return {
                                 ...cached,
-                                data: (cached.data as { id: number; liked?: boolean }[]).map((f) => ({ ...f, liked: likedSet.has(f.id) }))
+                                data: (cached.data as any[]).map((f) => rewriteFeed({ ...f, liked: likedSet.has(f.id) }, cdn, from))
                             };
                         }
-                        return cached;
+                        return { ...cached, data: (cached.data as any[]).map((f) => rewriteFeed(f, cdn, from)) };
                     }
                     const where = type === 'draft' ? eq(feeds.draft, 1) : type === 'unlisted' ? and(eq(feeds.draft, 0), eq(feeds.listed, 0)) : and(eq(feeds.draft, 0), eq(feeds.listed, 1));
                     const size = await db.select({ count: count() }).from(feeds).where(where);
@@ -77,7 +81,7 @@ export function FeedService() {
                             summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                             hashtags: hashtags.map(({ hashtag }) => hashtag),
                             avatar,
-                            images: extractImages(content),
+                            images: extractImages(content).slice(0, 9),
                             ...other
                         }
                     });
@@ -108,6 +112,7 @@ export function FeedService() {
                     if (actor && likedSet) {
                         data.data = data.data.map((f) => ({ ...f, liked: likedSet.has(f.id) }));
                     }
+                    data.data = data.data.map((f: any) => rewriteFeed(f, cdn, from));
                     return data
                 }, {
                     query: t.Object({
@@ -185,6 +190,9 @@ export function FeedService() {
                 })
                 .get('/:id', async ({ uid, anonUid, admin, set, headers, params: { id } }) => {
                     const id_num = parseInt(id);
+                    const env = getEnv();
+                    const cdn = await cdnHost(env);
+                    const from = env.S3_ACCESS_HOST;
                     const cache = PublicCache();
                     const cacheKey = `feed_${id}`;
                     const feed = await cache.getOrSet(cacheKey, () => (db.query.feeds.findFirst({
@@ -216,23 +224,28 @@ export function FeedService() {
                     const hashtags_flatten = hashtags.map((f) => f.hashtag);
 
 
-                    // update visits
+                    // update visits：pv/uv 改为计数列自增，避免每请求全量拉 visits 表（O(n) 危险）
                     const config = ClientConfig()
                     const enableVisit = await config.getOrDefault('counter.enabled', true);
                     let pv = 0;
                     let uv = 0;
                     if (enableVisit) {
                         const ip = headers['cf-connecting-ip'] || headers['x-real-ip'] || "UNK"
-                        await db.insert(visits).values({
-                            feedId: feed.id,
-                            ip: ip,
+                        await db.update(feeds).set({ pv: sql`${feeds.pv} + 1` }).where(eq(feeds.id, feed.id));
+                        const existed = await db.query.visits.findFirst({
+                            where: and(eq(visits.feedId, feed.id), eq(visits.ip, ip)),
+                            columns: { id: true },
                         });
-                        const visit = await db.query.visits.findMany({
-                            where: eq(visits.feedId, feed.id),
-                            columns: { id: true, ip: true }
+                        if (!existed) {
+                            await db.update(feeds).set({ uv: sql`${feeds.uv} + 1` }).where(eq(feeds.id, feed.id));
+                        }
+                        await db.insert(visits).values({ feedId: feed.id, ip });
+                        const row = await db.query.feeds.findFirst({
+                            where: eq(feeds.id, feed.id),
+                            columns: { pv: true, uv: true },
                         });
-                        pv = visit.length;
-                        uv = new Set(visit.map((v) => v.ip)).size;
+                        pv = row?.pv ?? 0;
+                        uv = row?.uv ?? 0;
                     }
                     const data = {
                         ...other,
@@ -258,13 +271,13 @@ export function FeedService() {
                     const liked = actor ? !!(await db.query.likes.findFirst({
                         where: and(eq(likes.feedId, feed.id), eq(likes.userId, actor))
                     })) : false;
-                    return {
+                    return rewriteFeed({
                         ...data,
                         comments: comment_list,
                         commentCount: comment_count[0]?.count ?? 0,
                         likes: likeAgg[0]?.c ?? 0,
                         liked
-                    };
+                    }, cdn, from);
                 })
                 .post('/:id', async ({
                     admin,
@@ -396,6 +409,9 @@ export function FeedService() {
         .get('/search/:keyword', async ({ admin, uid, anonUid, params: { keyword }, query: { page, limit } }) => {
             keyword = decodeURI(keyword);
             const cache = PublicCache();
+            const env = getEnv();
+            const cdn = await cdnHost(env);
+            const from = env.S3_ACCESS_HOST;
             const page_num = (page ? page > 0 ? page : 1 : 1) - 1;
             const limit_num = limit ? +limit > 50 ? 50 : +limit : 20;
             if (keyword === undefined || keyword.trim().length === 0) {
@@ -430,11 +446,12 @@ export function FeedService() {
                     }
                 },
                 orderBy: [desc(feeds.createdAt), desc(feeds.updatedAt)],
+                limit: (page_num + 2) * limit_num,
             }))).map(({ content, hashtags, summary, ...other }) => {
                 return {
                     summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                     hashtags: hashtags.map(({ hashtag }) => hashtag),
-                    images: extractImages(content),
+                    images: extractImages(content).slice(0, 9),
                     ...other
                 }
             });
@@ -450,6 +467,7 @@ export function FeedService() {
                 likedSet = new Set(my.map(r => r.feedId));
             }
             const feed_list = raw_list.map(f => ({ ...f, likes: likeMap.get(f.id) ?? 0, liked: likedSet ? likedSet.has(f.id) : false }));
+            const feed_list_r = feed_list.map((f: any) => rewriteFeed(f, cdn, from));
             if (feed_list.length <= page_num * limit_num) {
                 return {
                     size: feed_list.length,
@@ -459,13 +477,13 @@ export function FeedService() {
             } else if (feed_list.length <= page_num * limit_num + limit_num) {
                 return {
                     size: feed_list.length,
-                    data: feed_list.slice(page_num * limit_num),
+                    data: feed_list_r.slice(page_num * limit_num),
                     hasNext: false
                 }
             } else {
                 return {
                     size: feed_list.length,
-                    data: feed_list.slice(page_num * limit_num, page_num * limit_num + limit_num),
+                    data: feed_list_r.slice(page_num * limit_num, page_num * limit_num + limit_num),
                     hasNext: true
                 }
             }
@@ -569,6 +587,22 @@ type FeedItem = {
     createdAt: Date;
     updatedAt: Date;
     tags?: string[];
+}
+
+// 把单条 feed（含首图 avatar、images 数组、正文 content、作者头像、内嵌评论头像）里的
+// S3_ACCESS_HOST 实时替换为 cdn 域名；host/from 为空则原样返回。不改库。
+function rewriteFeed(f: any, host: string, from: string): any {
+    if (!host || !from) return f;
+    return {
+        ...f,
+        avatar: rewriteCdnStr(f?.avatar, host, from),
+        images: Array.isArray(f?.images) ? f.images.map((u: string) => rewriteCdnStr(u, host, from)) : f?.images,
+        content: rewriteCdnStr(f?.content, host, from),
+        user: f?.user ? { ...f.user, avatar: rewriteCdnStr(f.user.avatar, host, from) } : f?.user,
+        comments: Array.isArray(f?.comments)
+            ? f.comments.map((c: any) => ({ ...c, user: c.user ? { ...c.user, avatar: rewriteCdnStr(c.user.avatar, host, from) } : c.user }))
+            : f?.comments,
+    };
 }
 
 async function clearFeedCache(id: number, alias: string | null, newAlias: string | null) {

@@ -19,7 +19,7 @@ export function FeedsPage() {
     const query = new URLSearchParams(useSearch());
     const profile = useContext(ProfileContext);
     const type = (query.get("type") as FeedType) || 'normal'
-    const limit = tryInt(10, query.get("limit"), process.env.PAGE_SIZE)
+    const limit = tryInt(15, query.get("limit"), process.env.PAGE_SIZE)
     const [listState, setListState] = useState<FeedType>(type)
     const [items, setItems] = useState<any[]>([])
     const [size, setSize] = useState(0)

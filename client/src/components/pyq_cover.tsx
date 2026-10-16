@@ -72,7 +72,7 @@ export function PyqCoverHeader() {
                     </div>
                     <Link href="/timeline" title="时间轴">
                         {avatar
-                            ? <img src={avatar} alt="头像" referrerPolicy="no-referrer" />
+                            ? <img src={avatar} alt="头像" referrerPolicy="no-referrer" decoding="async" />
                             : <div style={{ width: 72, height: 72, borderRadius: 8, border: "3px solid var(--cobg)", background: "var(--imgbgy)" }} />}
                     </Link>
                 </div>

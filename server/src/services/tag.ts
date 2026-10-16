@@ -7,7 +7,7 @@ import { setup } from "../setup";
 
 export function TagService() {
     const db: DB = getDB();
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/tag', (group) =>
             group

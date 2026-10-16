@@ -77,7 +77,7 @@ async function upsertWeixinUser(db: DB, jwt: any, set: any, openid: string, nick
 }
 
 export function WechatService() {
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/ews', (group) =>
             group

@@ -111,6 +111,8 @@ export function Settings() {
                             <ItemInput title="公众号扫码 AppSecret" description="erphp-weixin-scan 插件对接：公众号 AppSecret" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
                             <ItemInput title="公众号扫码 Token" description="与 erphp-weixin-scan 插件一致的 Token（消息回调签名校验用）" type="server" configKey="ews_token" configKeyTitle="EWS Token" />
                             <ItemInput title="公众号扫码二维码地址" description="erphp-weixin-scan 插件生成的关注二维码图片地址，填到 ews_qrcode_url" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
+                            <ItemTitle title="CDN 加速（七牛镜像回源）" />
+                            <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
                             <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
                             <ItemInput title={t('settings.favicon.title')} description={t('settings.favicon.desc')} type="client" configKey="favicon" configKeyTitle="Favicon" />
                             <ItemInput title={t('settings.footer.title')} description={t('settings.footer.desc')} type="client" configKey="footer" configKeyTitle="Footer HTML" />

@@ -5,6 +5,7 @@ import type { Env } from "../db/db";
 import { setup } from "../setup";
 import { getEnv } from "../utils/di";
 import { createS3Client } from "../utils/s3";
+import { accessHost as cdnAccessHost } from "../utils/cdn";
 
 function buf2hex(buffer: ArrayBuffer) {
     return [...new Uint8Array(buffer)]
@@ -14,16 +15,14 @@ function buf2hex(buffer: ArrayBuffer) {
 
 export function StorageService() {
     const env: Env = getEnv();
-    const endpoint = env.S3_ENDPOINT;
     const bucket = env.S3_BUCKET;
     const folder = env.S3_FOLDER || '';
-    // 图片仍物理上传到 R2（S3 兼容），但访问域名优先走七牛镜像回源 CDN_HOST；
-    // 未配置 CDN_HOST 时回退到原 S3_ACCESS_HOST / endpoint，保证本地开发可用。
-    const accessHost = env.CDN_HOST || env.S3_ACCESS_HOST || endpoint;
+    // 图片仍物理上传到 R2（S3 兼容），但访问域名优先走七牛镜像回源 CDN_HOST（含后端设置 cdn_host）；
+    // 未配置时回退到原 S3_ACCESS_HOST / endpoint，保证本地开发可用。
     const accessKeyId = env.S3_ACCESS_KEY_ID;
     const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
     const s3 = createS3Client();
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/storage', (group) =>
             group
@@ -59,7 +58,7 @@ export function StorageService() {
                     try {
                         const response = await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: file, ContentType: file.type }))
                         console.info(response);
-                        return `${accessHost}/${hashkey}`
+                        return `${await cdnAccessHost(env)}/${hashkey}`
                     } catch (e: any) {
                         set.status = 400;
                         console.error(e.message)

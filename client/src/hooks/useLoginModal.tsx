@@ -1,5 +1,4 @@
 import { t } from "i18next";
-import { Button } from "primereact/button";
 import { useCallback, useState } from "react";
 import ReactModal from "react-modal";
 import { Icon } from "../components/icon";
@@ -55,7 +54,7 @@ export function useLoginModal(onClose?: () => void) {
                             autofocus
                             onSubmit={onLogin} />
                         <div className="flex flex-row items-center space-x-4">
-                            <Button title={t("login.title")} onClick={onLogin} />
+                            <button title={t("login.title")} onClick={onLogin} />
                         </div>
                     </>
                     }

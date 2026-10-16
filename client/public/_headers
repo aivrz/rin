@@ -1,0 +1,9 @@
+# 带 hash 的 JS/CSS/字体/图片资源：长缓存 + immutable（资源内容变化则 hash 变化，安全）
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 全局安全头（仅作用于 Pages 前端域；API Worker 由 server.ts 控制）
+/*
+  Strict-Transport-Security: max-age=63072000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

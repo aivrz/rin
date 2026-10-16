@@ -81,6 +81,8 @@ export function Markdown({ content }: { content: string }) {
             <img
               src={src}
               {...props}
+              loading={previousContent.trim().length === 0 ? "eager" : "lazy"}
+              decoding="async"
               onClick={() => {
                 show(src)
               }}

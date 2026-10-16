@@ -15,14 +15,14 @@ import { feeds, users } from "../db/schema";
 import { getEnv } from "../utils/di";
 import { extractImage } from "../utils/image";
 import { createS3Client } from "../utils/s3";
+import { accessHost as cdnAccessHost, cdnHost } from "../utils/cdn";
 
 export function RSSService() {
     const env: Env = getEnv();
-    const endpoint = env.S3_ENDPOINT;
-    const accessHost = env.S3_ACCESS_HOST || endpoint;
     const folder = env.S3_CACHE_FOLDER || 'cache/';
-    return new Elysia({ aot: false })
+    return new Elysia()
         .get('/sub/:name', async ({ set, params: { name } }) => {
+            const accessHost = await cdnAccessHost(env);
             const host = `${(accessHost.startsWith("http://") || accessHost.startsWith("https://") ? '' :'https://')}${accessHost}`;
             if (!host) {
                 set.status = 500;
@@ -38,7 +38,11 @@ export function RSSService() {
                     console.log(`Fetching ${url}`);
                     const response = await fetch(new Request(url))
                     const contentType = name === 'rss.xml' ? 'application/rss+xml; charset=UTF-8' : name === 'atom.xml' ? 'application/atom+xml; charset=UTF-8' : 'application/feed+json; charset=UTF-8';
-                    return new Response(response.body, {
+                    const text = await response.text();
+                    const cdnVal = await cdnHost(env);
+                    const from = env.S3_ACCESS_HOST;
+                    const body = (cdnVal && from) ? text.split(from).join(cdnVal) : text;
+                    return new Response(body, {
                         status: response.status,
                         statusText: response.statusText,
                         headers: {

@@ -1,10 +1,8 @@
-import { eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { oauth2 } from "elysia-oauth2";
 import type { DB } from "./_worker";
 import type { Env } from "./db/db";
-import { users } from "./db/schema";
-import { getDB, getEnv } from "./utils/di";
+import { getEnv } from "./utils/di";
 import jwt from "./utils/jwt";
 
 
@@ -22,7 +20,6 @@ function anonIdToUid(anonId: string | undefined): number | undefined {
     return -1 - u
 }
 export function setup() {
-    const db: DB = getDB();
     const env: Env = getEnv();
     let gh_client_id = env.RIN_GITHUB_CLIENT_ID || env.GITHUB_CLIENT_ID;
     let gh_client_secret = env.RIN_GITHUB_CLIENT_SECRET || env.GITHUB_CLIENT_SECRET;
@@ -38,14 +35,13 @@ export function setup() {
         GitHub: [
             gh_client_id,
             gh_client_secret
-        ],
+        ]
     })
-    return new Elysia({ aot: false, name: 'setup' })
+    return new Elysia({ name: 'setup' })
         .state('anyUser', anyUser)
         .use(oauth)
         .use(
             jwt({
-                aot: false,
                 name: 'jwt',
                 secret: jwt_secret,
                 schema: t.Object({
@@ -63,7 +59,8 @@ export function setup() {
             if (process.env.NODE_ENV?.toLowerCase() === 'test') {
                 console.warn('Now in test mode, skip jwt verification.')
                 try {
-                    return { ...JSON.parse(token), anonUid };
+                    const p = JSON.parse(token)
+                    return { uid: p.id, username: p.username, admin: p.permission === 1, anonUid };
                 } catch (e) {
                     return { anonUid };
                 }
@@ -72,15 +69,11 @@ export function setup() {
             if (!profile) {
                 return { anonUid };
             }
-
-            const user = await db.query.users.findFirst({ where: eq(users.id, profile.id) })
-            if (!user) {
-                return { anonUid };
-            }
+            // 登录态直接取 JWT payload 中的 id/username/permission，避免每请求查 users 表
             return {
-                uid: user.id,
-                username: user.username,
-                admin: user.permission === 1,
+                uid: (profile as any).id,
+                username: (profile as any).username,
+                admin: (profile as any).permission === 1,
                 anonUid,
             }
         })

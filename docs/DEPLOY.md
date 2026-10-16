@@ -105,6 +105,10 @@ S3_SECRET_ACCESS_KEY=<你的S3SecretAccessKey>
 路径：<留空>
 ```
 
+> [!TIP]
+> **七牛镜像回源加速**：图片加速在站点「设置页 → CDN 加速」填写七牛 CDN 域名即可（运行时可开关，不需重建）。
+> 若要让 **JS/CSS/字体** 也走七牛边缘，需在 Cloudflare Pages「构建设置 → 环境变量（仅构建）」添加 `ASSET_BASE=https://<你的七牛CDN域名>`，重新部署；该域名镜像回源的源站填本站 Pages 域名。
+
 ![1000000659](https://github.com/openRin/Rin/assets/36541432/98fb3021-932b-4bfa-8118-3378f98ff628)
 
 环境变量复制以下内容，根据自身情况修改变量值：

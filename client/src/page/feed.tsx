@@ -420,8 +420,11 @@ function Comments({ id, initial }: { id: string, initial: Comment[] }) {
   }
   useEffect(() => {
     if (ref.current == id) return;
-    loadComments();
     ref.current = id;
+    // 详情接口已返回 comments（initial），无需重复拉取；仅当无初始数据时兜底拉取
+    if (!initial || initial.length === 0) {
+      loadComments();
+    }
   }, [id]);
   return (
     <div className="pyq-comments">

@@ -8,11 +8,12 @@ import { ServerConfig } from "../utils/cache";
 import { Config } from "../utils/config";
 import { getDB, getEnv } from "../utils/di";
 import { notify } from "../utils/webhook";
+import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 
 export function CommentService() {
     const db: DB = getDB();
     const env: Env = getEnv();
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/feed/comment', (group) =>
             group
@@ -31,7 +32,10 @@ export function CommentService() {
                         },
                         orderBy: [desc(comments.createdAt)]
                     });
-                    return comment_list;
+                    const env = getEnv();
+                    const cdn = await cdnHost(env);
+                    const from = env.S3_ACCESS_HOST;
+                    return comment_list.map((c: any) => ({ ...c, user: c.user ? { ...c.user, avatar: rewriteCdnStr(c.user.avatar, cdn, from) } : c.user }));
                 })
                 .post('/:feed', async ({ uid, set, params: { feed }, body: { content } }) => {
                     if (!uid) {

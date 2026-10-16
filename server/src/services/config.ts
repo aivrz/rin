@@ -3,7 +3,7 @@ import { setup } from "../setup";
 import { ClientConfig, PublicCache, ServerConfig } from "../utils/cache";
 
 export function ConfigService() {
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/config', (group) =>
             group

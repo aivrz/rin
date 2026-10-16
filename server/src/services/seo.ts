@@ -5,6 +5,7 @@ import type { Env } from "../db/db";
 import { feeds } from "../db/schema";
 import { getDB, getEnv } from "../utils/di";
 import { PublicCache } from "../utils/cache";
+import { accessHost as cdnAccessHost } from "../utils/cdn";
 
 function escapeXml(s: string): string {
     return s.replace(/[<>&'"]/g, (c) => ({
@@ -14,13 +15,12 @@ function escapeXml(s: string): string {
 
 export function SEOService() {
     const env: Env = getEnv();
-    const endpoint = env.S3_ENDPOINT;
-    const accessHost = env.S3_ACCESS_HOST || endpoint;
     const folder = env.S3_CACHE_FOLDER || 'cache/';
     const db = getDB();
     const base = (env.FRONTEND_URL || '').replace(/\/$/, '');
-    return new Elysia({ aot: false })
+    return new Elysia()
         .get('/seo/*', async ({ set, params, query }) => {
+            const accessHost = await cdnAccessHost(env);
             if (!accessHost) {
                 set.status = 500;
                 return 'S3_ACCESS_HOST is not defined'
@@ -38,9 +38,18 @@ export function SEOService() {
                 const url = `${accessHost}/${key}`;
                 console.log(`Fetching ${url}`);
                 const response = await fetch(new Request(url))
+                const headers = new Headers();
+                response.headers.forEach((v, k) => {
+                    const lk = k.toLowerCase();
+                    if (lk !== 'content-encoding' && lk !== 'content-length' && lk !== 'transfer-encoding') {
+                        headers.set(k, v);
+                    }
+                });
+                headers.set('Cache-Control', 'public, s-maxage=300, max-age=300, stale-while-revalidate=600');
                 return new Response(response.body, {
                     status: response.status,
                     statusText: response.statusText,
+                    headers,
                 });
             } catch (e: any) {
                 console.error(e);

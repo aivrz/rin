@@ -4,7 +4,8 @@ import { URL } from "url";
 import type { DB } from "../_worker";
 import { users } from "../db/schema";
 import { setup } from "../setup";
-import { getDB } from "../utils/di";
+import { getDB, getEnv } from "../utils/di";
+import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 
 export function UserService() {
     const db: DB = getDB();
@@ -52,7 +53,7 @@ export function UserService() {
                                 profile.permission = user.permission
                                 await db.update(users).set(profile).where(eq(users.id, user.id));
                                 token.set({
-                                    value: await jwt.sign({ id: user.id }),
+                                    value: await jwt.sign({ id: user.id, username: user.username, permission: user.permission }),
                                     expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
                                     path: '/',
                                 })
@@ -71,7 +72,7 @@ export function UserService() {
                                     throw new Error('Failed to register');
                                 } else {
                                     token.set({
-                                        value: await jwt.sign({ id: result[0].insertedId }),
+                                        value: await jwt.sign({ id: result[0].insertedId, username: profile.username, permission: profile.permission }),
                                         expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
                                         path: '/',
                                     })
@@ -104,10 +105,13 @@ export function UserService() {
                         set.status = 404
                         return 'User not found'
                     }
+                    const env = getEnv();
+                    const cdn = await cdnHost(env);
+                    const from = env.S3_ACCESS_HOST;
                     return {
                         id: user.id,
                         username: user.username,
-                        avatar: user.avatar,
+                        avatar: rewriteCdnStr(user.avatar, cdn, from),
                         permission: user.permission === 1,
                         createdAt: user.createdAt,
                         updatedAt: user.updatedAt,

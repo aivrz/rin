@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet'
 import { getCookie } from 'typescript-cookie'
 import { DefaultParams, PathPattern, Route, Switch } from 'wouter'
@@ -9,14 +9,11 @@ import { client } from './main'
 import { CallbackPage } from './page/callback'
 import { FeedPage } from './page/feed'
 import { FeedsPage } from './page/feeds'
-import { FriendsPage } from './page/friends'
 import { HashtagPage } from './page/hashtag.tsx'
 import { HashtagsPage } from './page/hashtags.tsx'
 import { NavPage } from './page/nav'
 import { PinnedPage } from './page/pinned'
-import { Settings } from "./page/settings.tsx"
 import { TimelinePage } from './page/timeline'
-import { WritingPage } from './page/writing'
 import { ClientConfigContext, ConfigWrapper, defaultClientConfig } from './state/config.tsx'
 import { Profile, ProfileContext } from './state/profile'
 import { headersWithAuth } from './utils/auth'
@@ -24,6 +21,11 @@ import { tryInt } from './utils/int'
 import { SearchPage } from './page/search.tsx'
 import { Tips, TipsPage } from './components/tips.tsx'
 import { useTranslation } from 'react-i18next'
+
+// 重页面（写作/设置/友链）按需加载，避免 monaco/primereact/mermaid 等进入首屏主包
+const WritingPage = lazy(() => import('./page/writing').then(m => ({ default: m.WritingPage })))
+const Settings = lazy(() => import('./page/settings').then(m => ({ default: m.Settings })))
+const FriendsPage = lazy(() => import('./page/friends').then(m => ({ default: m.FriendsPage })))
 
 function App() {
   const ref = useRef(false)
@@ -71,6 +73,7 @@ function App() {
             {favicon &&
               <link rel="icon" href={favicon} />}
           </Helmet>
+          <Suspense fallback={<div className="p-4 text-sm text-neutral-500">加载中…</div>}>
           <Switch>
             <RoutePyq path="/">
               <FeedsPage />
@@ -170,6 +173,7 @@ function App() {
             {/* Default route in a switch */}
             <Route>404: No such page!</Route>
           </Switch>
+          </Suspense>
         </ProfileContext.Provider>
       </ClientConfigContext.Provider>
     </>

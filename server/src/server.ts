@@ -13,7 +13,7 @@ import { ConfigService } from './services/config';
 import { WechatService } from './services/wechat';
 import { OAuthService } from './services/oauth';
 
-export const app = () => new Elysia({ aot: false })
+export const app = () => new Elysia()
     .use(cors({
         aot: false,
         origin: '*',
@@ -42,6 +42,15 @@ export const app = () => new Elysia({ aot: false })
     .use(WechatService())
     .use(OAuthService())
     .get('/', () => `Hi`)
+    .onAfterHandle(({ request, set }) => {
+        // 公共匿名 GET 统一加边缘缓存；用户态（带 authorization 或 token cookie）不缓存，避免串号
+        if (request.method !== 'GET') return;
+        const auth = request.headers.get('authorization');
+        const cookie = request.headers.get('cookie') || '';
+        if (auth || cookie.includes('token=')) return;
+        if (set.headers['Cache-Control'] || set.headers['cache-control']) return;
+        set.headers['Cache-Control'] = 'public, s-maxage=60, max-age=60, stale-while-revalidate=300';
+    })
     .onError(({ path, params, code }) => {
         if (code === 'NOT_FOUND')
             return `${path} ${JSON.stringify(params)} not found`

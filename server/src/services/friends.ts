@@ -10,18 +10,25 @@ import { ClientConfig, ServerConfig } from "../utils/cache";
 import { Config } from "../utils/config";
 import { getDB, getEnv } from "../utils/di";
 import { notify } from "../utils/webhook";
+import { cdnHost, rewriteCdnStr } from "../utils/cdn";
 
 export function FriendService() {
     const db: DB = getDB();
     const env: Env = getEnv();
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .group('/friend', (group) =>
             group.get('/', async ({ admin, uid }) => {
                 const friend_list = await (admin ? db.query.friends.findMany() : db.query.friends.findMany({ where: eq(friends.accepted, 1) }));
                 const uid_num = parseInt(uid);
                 const apply_list = await db.query.friends.findFirst({ where: eq(friends.uid, uid_num ?? null) });
-                return { friend_list, apply_list };
+                const env = getEnv();
+                const cdn = await cdnHost(env);
+                const from = env.S3_ACCESS_HOST;
+                return {
+                    friend_list: friend_list.map((f: any) => ({ ...f, avatar: rewriteCdnStr(f.avatar, cdn, from) })),
+                    apply_list
+                };
             })
                 .post('/', async ({ admin, uid, username, set, body: { name, desc, avatar, url } }) => {
                     const config = ClientConfig()

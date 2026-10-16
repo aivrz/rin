@@ -7,7 +7,7 @@ import * as schema from './db/schema';
 import { app } from "./server";
 import { friendCrontab } from "./services/friends";
 import { rssCrontab } from "./services/rss";
-import { CacheImpl } from "./utils/cache";
+import { CacheImpl, ServerConfig } from "./utils/cache";
 import { dbToken, envToken } from "./utils/di";
 export type DB = DrizzleD1Database<typeof import("./db/schema")>
 
@@ -25,9 +25,11 @@ export default {
             Container.set("cache", new CacheImpl());
             Container.set("server.config", new CacheImpl("server.config"));
             Container.set("client.config", new CacheImpl("client.config"));
+            // 冷实例启动预热：把 server 配置载入内存，避免首个业务请求因初次拉取 R2 配置而延迟
+            await ServerConfig().get('cdn_host');
         }
 
-        return await new Elysia({ aot: false })
+        return await new Elysia()
             .use(app())
             .handle(request)
     },

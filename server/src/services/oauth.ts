@@ -113,7 +113,7 @@ async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, p
 }
 
 export function OAuthService() {
-    return new Elysia({ aot: false })
+    return new Elysia()
         .use(setup())
         .get('/user/:provider', async ({ params, set, headers, request, env }) => {
             const provider = params.provider as Provider;
