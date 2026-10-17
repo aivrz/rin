@@ -1,7 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactModal from "react-modal";
-import Popup from "reactjs-popup";
 import { Link, useLocation } from "wouter";
 import { useAlert, useConfirm } from "../components/dialog";
 import { HashTag } from "../components/hashtag";
