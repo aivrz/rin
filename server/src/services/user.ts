@@ -53,7 +53,7 @@ export function UserService() {
                                 profile.permission = user.permission
                                 await db.update(users).set(profile).where(eq(users.id, user.id));
                                 token.set({
-                                    value: await jwt.sign({ id: user.id, username: user.username, permission: user.permission }),
+                                    value: await jwt.sign({ id: user.id, username: user.username, permission: user.permission ?? undefined }),
                                     expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
                                     path: '/',
                                 })
@@ -72,7 +72,7 @@ export function UserService() {
                                     throw new Error('Failed to register');
                                 } else {
                                     token.set({
-                                        value: await jwt.sign({ id: result[0].insertedId, username: profile.username, permission: profile.permission }),
+                                        value: await jwt.sign({ id: result[0].insertedId, username: profile.username, permission: profile.permission ?? undefined }),
                                         expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
                                         path: '/',
                                     })
