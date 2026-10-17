@@ -23,17 +23,6 @@ export default defineConfig(({ mode }) => {
             if (id.includes('monaco') || id.includes('@monaco-editor')) return 'vendor-editor'
             if (id.includes('mermaid')) return 'vendor-mermaid'
             if (id.includes('yet-another-react-lightbox')) return 'vendor-lightbox'
-            if (
-              id.includes('katex') ||
-              id.includes('react-markdown') || id.includes('rehype') || id.includes('remark') ||
-              id.includes('unified') || id.includes('mdast') || id.includes('hast') ||
-              id.includes('micromark') || id.includes('vfile') || id.includes('bail') ||
-              id.includes('trough') || id.includes('zwitch') || id.includes('web-namespaces') ||
-              id.includes('property-information') || id.includes('space-separated') || id.includes('comma-separated') ||
-              id.includes('decode-named-character-reference') || id.includes('character-entities') ||
-              id.includes('github-slugger') || id.includes('hastscript') || id.includes('html-url') ||
-              id.includes('estree') || id.includes('unist') || id.includes('ccount')
-            ) return 'vendor-markdown'
             if (id.includes('primereact')) return 'vendor-primereact'
             if (id.includes('react-dom') || id.includes('react') || id.includes('scheduler')) return 'vendor-react'
             if (id.includes('wouter')) return 'vendor-wouter'
