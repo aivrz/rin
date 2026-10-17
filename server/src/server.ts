@@ -10,6 +10,7 @@ import { StorageService } from './services/storage';
 import { TagService } from './services/tag';
 import { UserService } from './services/user';
 import { ConfigService } from './services/config';
+import { MusicService } from './services/music';
 import { WechatService } from './services/wechat';
 import { OAuthService } from './services/oauth';
 
@@ -38,6 +39,7 @@ export const app = () => new Elysia({ aot: false })
     .use(SEOService())
     .use(RSSService())
     .use(ConfigService())
+    .use(MusicService())
     .use(WechatService())
     .use(OAuthService())
     .get('/', () => `Hi`)

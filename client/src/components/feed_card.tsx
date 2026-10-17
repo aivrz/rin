@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useEffect, useState, useContext } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
@@ -9,6 +9,8 @@ import { buildCommentTree, FlatComment } from "../utils/commentTree";
 import { useLike } from "../hooks/useLike";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { ProfileContext } from "../state/profile";
+import { client } from "../main";
+import { headersWithAuth } from "../utils/auth";
 
 function stripMdImages(text: string): string {
     return text.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -47,6 +49,17 @@ export function FeedCard({
     const [lightbox, setLightbox] = useState<string | null>(null);
     const [commentOpen, setCommentOpen] = useState(false);
     const [cmtList, setCmtList] = useState(comments);
+
+    // 首页卡片挂载即拉取该文章的评论（含 parentId 嵌套），无需点击评论按钮即可看到多级嵌套评论
+    useEffect(() => {
+        if (!id) return;
+        client.feed.comment({ feed: id }).get({ headers: headersWithAuth() })
+            .then(({ data, error }) => {
+                if (!error && data && Array.isArray(data)) {
+                    setCmtList(data as FlatComment[]);
+                }
+            });
+    }, [id]);
 
     const author = user?.username || "匿名";
     const avatar = user?.avatar || "";

@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { ClientConfigContext } from "../state/config";
 import { useContext } from "react";
-import { PyqFloat } from "./pyq_float";
+import { TopMusicPlayer } from "./top_music";
 
 // 仿 pyq 顶部封面 + 站点资料（头像 / 昵称 / 个签）+ 叠加在封面上的吸顶玻璃导航。
 export function PyqCoverHeader() {
@@ -15,6 +15,7 @@ export function PyqCoverHeader() {
     const { LoginModal, setIsOpened } = useLoginModal();
     const [searchOpen, setSearchOpen] = useState(false);
     const [keyword, setKeyword] = useState("");
+    const [navOpen, setNavOpen] = useState(false);
     const [_, setLocation] = useLocation();
 
     useEffect(() => {
@@ -42,20 +43,35 @@ export function PyqCoverHeader() {
                     <Link href="/" className="pyq-main-head-top-left-s" aria-label="首页" title="首页">
                         <i className="ri-home-4-line" />
                     </Link>
-                </div>
-                <div className="pyq-main-head-top-right">
-                    <button className="pyq-main-head-top-right-s" aria-label="搜索" title="搜索" onClick={() => setSearchOpen(true)}>
+                    <button className="pyq-main-head-top-left-s" aria-label="搜索" title="搜索" onClick={() => setSearchOpen(true)}>
                         <i className="ri-search-line" />
                     </button>
+                </div>
+                <div className="pyq-main-head-top-center">
+                    <TopMusicPlayer />
+                </div>
+                <div className="pyq-main-head-top-right">
                     {loginEnabled &&
                         <button className="pyq-main-head-top-right-s" aria-label="登录" title="登录" onClick={() => setIsOpened(true)}>
                             <i className="ri-user-line" />
                         </button>}
-                    <Link href="/nav" className="pyq-main-head-top-right-s" aria-label="导航" title="全站导航">
-                        <i className="ri-menu-line" />
-                    </Link>
+                    <div className="pyq-nav-dropdown-wrap">
+                        <button className="pyq-main-head-top-right-s" aria-label="全站导航" title="全站导航" onClick={() => setNavOpen(v => !v)}>
+                            <i className={navOpen ? "ri-close-line" : "ri-menu-line"} />
+                        </button>
+                        {navOpen &&
+                            <div className="pyq-nav-dropdown" onClick={(e) => e.stopPropagation()}>
+                                <Link href="/nav" className="pyq-nav-dropdown-item" onClick={() => setNavOpen(false)}>导航</Link>
+                                <Link href="/timeline" className="pyq-nav-dropdown-item" onClick={() => setNavOpen(false)}>归档</Link>
+                                <Link href="/friends" className="pyq-nav-dropdown-item" onClick={() => setNavOpen(false)}>友链</Link>
+                                <Link href="/hashtags" className="pyq-nav-dropdown-item" onClick={() => setNavOpen(false)}>标签</Link>
+                                <Link href="/pinned" className="pyq-nav-dropdown-item" onClick={() => setNavOpen(false)}>置顶</Link>
+                                <button className="pyq-nav-dropdown-item" onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setNavOpen(false); }}>回到顶部</button>
+                            </div>}
+                    </div>
                 </div>
             </div>
+            {navOpen && <div className="pyq-nav-backdrop" onClick={() => setNavOpen(false)} />}
             <div
                 className="pyq-main-head-img"
                 style={{
@@ -99,7 +115,6 @@ export function PyqCoverHeader() {
                 </div>}
 
             <LoginModal />
-            <PyqFloat />
         </div>
     );
 }

@@ -232,6 +232,159 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     background: #2c2c2c;
 }
 
+/* ============ 顶栏三栏 + 单行音乐播放器 + 全站导航下拉 ============ */
+.pyq-main-head-top-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 0 8px;
+}
+
+.pyq-nav-dropdown-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.pyq-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.pyq-nav-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 61;
+    min-width: 136px;
+    background: var(--cobg);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    border: 1px solid var(--fgxys);
+}
+
+.pyq-nav-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 11px 16px;
+    color: var(--textqh);
+    font-size: 14px;
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 1px solid var(--fgxys);
+}
+
+.pyq-nav-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.pyq-nav-dropdown-item:hover {
+    background: var(--bganh);
+}
+
+/* 顶栏单行音乐播放器 */
+.pyq-mini-player {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+}
+
+.pyq-mini-btn {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--topbar-btn-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+}
+
+.pyq-mini-btn:hover {
+    background: #fff;
+}
+
+.pyq-mini-play {
+    color: #fff !important;
+    background: var(--theme) !important;
+}
+
+.pyq-mini-play:hover {
+    background: var(--theme) !important;
+    opacity: .9;
+}
+
+.pyq-mini-play:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.pyq-mini-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.pyq-mini-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--textqh);
+    white-space: nowrap;
+}
+
+.pyq-mini-cover {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--imgbgy);
+}
+
+.pyq-mini-nocover {
+    font-size: 14px;
+    color: var(--texths);
+}
+
+.pyq-mini-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pyq-mini-hint {
+    color: var(--texths);
+}
+
+[data-color-mode="dark"] .pyq-mini-btn:hover {
+    background: #2c2c2c;
+}
+
+/* 移动端：收紧顶栏，音乐播放器仅保留播放/暂停与截断歌名 */
+@media (max-width: 640px) {
+    .pyq-mini-btn:not(.pyq-mini-play) {
+        display: none;
+    }
+    .pyq-mini-player {
+        gap: 4px;
+    }
+}
+
 /* ============ 动态卡片 ============ */
 .pyq-content {
     display: flex;
@@ -868,70 +1021,6 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     color: var(--texths);
     font-size: 12px;
     padding: 18px 12px 40px;
-}
-
-.pyq-menu {
-    position: fixed;
-    right: 16px;
-    bottom: 24px;
-    z-index: 60;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.pyq-menu-k {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--menu);
-    color: var(--topbar-btn-icon-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-    cursor: pointer;
-}
-
-.pyq-menu-panel {
-    position: fixed;
-    right: 16px;
-    bottom: 80px;
-    z-index: 62;
-}
-
-.pyq-menu-panel-inner {
-    background: var(--cobg);
-    border-radius: 12px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-    overflow: hidden;
-    min-width: 120px;
-}
-
-.pyq-menu-panel-item {
-    display: block;
-    padding: 10px 16px;
-    color: var(--textqh);
-    font-size: 14px;
-    text-decoration: none;
-    border-bottom: 1px solid var(--dzplcdfg);
-    background: none;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-}
-
-.pyq-menu-panel-item:last-child {
-    border-bottom: none;
-}
-
-.pyq-menu-panel-item:hover {
-    background: var(--bganh);
-}
-
-[data-color-mode="dark"] .pyq-menu-panel-inner {
-    border: 1px solid var(--fgxys);
 }
 
 /* ============ 全局音乐悬浮播放器 ============ */
