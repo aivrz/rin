@@ -90,6 +90,7 @@ export const comments = sqliteTable("comments", {
     id: integer("id").primaryKey(),
     feedId: integer("feed_id").references(() => feeds.id, { onDelete: 'cascade' }).notNull(),
     userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    parentId: integer("parent_id"), // 回复父评论 id，顶层评论为 null
     content: text("content").notNull(),
     createdAt: created_at,
     updatedAt: updated_at,
@@ -118,7 +119,7 @@ export const feedsRelations = relations(feeds, ({ many, one }) => ({
     comments: many(comments),
 }));
 
-export const commentsRelations = relations(comments, ({ one }) => ({
+export const commentsRelations = relations(comments, ({ one, many }) => ({
     feed: one(feeds, {
         fields: [comments.feedId],
         references: [feeds.id],
@@ -127,6 +128,11 @@ export const commentsRelations = relations(comments, ({ one }) => ({
         fields: [comments.userId],
         references: [users.id],
     }),
+    parent: one(comments, {
+        fields: [comments.parentId],
+        references: [comments.id],
+    }),
+    replies: many(comments),
 }));
 
 export const hashtagsRelations = relations(hashtags, ({ many }) => ({

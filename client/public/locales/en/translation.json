@@ -49,6 +49,8 @@
       "title": "Say something..."
     },
     "submit": "Submit Comment",
+    "send": "Send",
+    "reply": "Reply",
     "success": "Comment successful",
     "title": "Comment"
   },

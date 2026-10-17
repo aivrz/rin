@@ -1,4 +1,4 @@
-import { desc, eq, or } from "drizzle-orm";
+import { desc, eq, or, inArray } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import type { DB } from "../_worker";
 import type { Env } from "../db/db";
@@ -37,7 +37,7 @@ export function CommentService() {
                     const from = env.S3_ACCESS_HOST;
                     return comment_list.map((c: any) => ({ ...c, user: c.user ? { ...c.user, avatar: rewriteCdnStr(c.user.avatar, cdn, from) } : c.user }));
                 })
-                .post('/:feed', async ({ uid, set, params: { feed }, body: { content } }) => {
+                .post('/:feed', async ({ uid, set, params: { feed }, body: { content, parentId } }) => {
                     if (!uid) {
                         set.status = 401;
                         return 'Unauthorized';
@@ -60,10 +60,18 @@ export function CommentService() {
                         set.status = 400;
                         return 'User not found';
                     }
-
+                    // 回复场景：校验父评论存在且属于同一 feed
+                    if (parentId !== undefined && parentId !== null) {
+                        const parent = await db.query.comments.findFirst({ where: eq(comments.id, parentId) });
+                        if (!parent || parent.feedId !== feedId) {
+                            set.status = 400;
+                            return 'Parent comment not found';
+                        }
+                    }
                     await db.insert(comments).values({
                         feedId,
                         userId,
+                        parentId: parentId ?? null,
                         content
                     });
 
@@ -73,7 +81,8 @@ export function CommentService() {
                     return 'OK';
                 }, {
                     body: t.Object({
-                        content: t.String()
+                        content: t.String(),
+                        parentId: t.Optional(t.Number())
                     })
                 })
         )
@@ -94,7 +103,24 @@ export function CommentService() {
                         set.status = 403;
                         return 'Permission denied';
                     }
-                    await db.delete(comments).where(eq(comments.id, id_num));
+                    // 收集目标评论及其全部子孙 id，连同父评论一并删除，避免留下孤儿节点
+                    const all = await db.query.comments.findMany({ where: eq(comments.feedId, comment.feedId) });
+                    const childrenMap = new Map<number, number[]>();
+                    for (const c of all) {
+                        if (c.parentId !== null && c.parentId !== undefined) {
+                            if (!childrenMap.has(c.parentId)) childrenMap.set(c.parentId, []);
+                            childrenMap.get(c.parentId)!.push(c.id);
+                        }
+                    }
+                    const toDelete = new Set<number>([id_num]);
+                    const stack = [id_num];
+                    while (stack.length) {
+                        const cur = stack.pop()!;
+                        for (const k of (childrenMap.get(cur) || [])) {
+                            if (!toDelete.has(k)) { toDelete.add(k); stack.push(k); }
+                        }
+                    }
+                    await db.delete(comments).where(inArray(comments.id, Array.from(toDelete)));
                     return 'OK';
                 })
         );

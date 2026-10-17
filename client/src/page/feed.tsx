@@ -17,6 +17,7 @@ import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
 import { headersWithAuth } from "../utils/auth";
 import { timeago } from "../utils/timeago";
+import { buildCommentTree, CommentNode } from "../utils/commentTree";
 import { Button } from "../components/button";
 import { Tips } from "../components/tips";
 import { useLoginModal } from "../hooks/useLoginModal";
@@ -46,6 +47,7 @@ type Feed = {
     id: number;
     content: string;
     createdAt: Date;
+    parentId: number | null;
     user: { id: number; username: string; avatar: string | null };
   }[];
   commentCount?: number;
@@ -389,6 +391,7 @@ type Comment = {
   content: string;
   createdAt: Date;
   updatedAt?: Date;
+  parentId: number | null;
   user: {
     id: number;
     username: string;
@@ -399,7 +402,7 @@ type Comment = {
 
 function Comments({ id, initial }: { id: string, initial: Comment[] }) {
   const config = useContext(ClientConfigContext);
-  const [comments, setComments] = useState<Comment[]>(initial);
+  const [comments, setComments] = useState<Comment[]>(initial || []);
   const [error, setError] = useState<string>();
   const ref = useRef("");
   const { t } = useTranslation();
@@ -414,18 +417,17 @@ function Comments({ id, initial }: { id: string, initial: Comment[] }) {
         if (error) {
           setError(error.value as string);
         } else if (data && Array.isArray(data)) {
-          setComments(data);
+          setComments(data as Comment[]);
         }
       });
   }
   useEffect(() => {
     if (ref.current == id) return;
     ref.current = id;
-    // 详情接口已返回 comments（initial），无需重复拉取；仅当无初始数据时兜底拉取
-    if (!initial || initial.length === 0) {
-      loadComments();
-    }
+    // 始终通过评论接口拉取（含 parentId），保证嵌套层级正确
+    loadComments();
   }, [id]);
+  const tree = useMemo(() => buildCommentTree(comments), [comments]);
   return (
     <div className="pyq-comments">
       {config.get<boolean>('comment.enabled') &&
@@ -437,14 +439,16 @@ function Comments({ id, initial }: { id: string, initial: Comment[] }) {
               <button className="pyq-btn-theme" onClick={loadComments}>{t("reload")}</button>
             </div>
           )}
-          {comments.length > 0 && (
+          {tree.length > 0 && (
             <div>
               <div className="pyq-page-title">评论 {comments.length}</div>
-              {comments.map((comment) => (
+              {tree.map((comment) => (
                 <CommentItem
                   key={comment.id}
                   comment={comment}
+                  feedId={id}
                   onRefresh={loadComments}
+                  depth={0}
                 />
               ))}
             </div>
@@ -457,15 +461,22 @@ function Comments({ id, initial }: { id: string, initial: Comment[] }) {
 
 function CommentItem({
   comment,
+  feedId,
   onRefresh,
+  depth,
 }: {
-  comment: Comment;
+  comment: CommentNode;
+  feedId: string;
   onRefresh: () => void;
+  depth: number;
 }) {
   const { showConfirm, ConfirmUI } = useConfirm();
   const { showAlert, AlertUI } = useAlert();
   const { t } = useTranslation();
   const profile = useContext(ProfileContext);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyContent, setReplyContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   function deleteComment() {
     showConfirm(
       t("delete.comment.title"),
@@ -487,41 +498,96 @@ function CommentItem({
           });
       })
   }
+  function submitReply() {
+    const text = replyContent.trim();
+    if (!text) return;
+    setSubmitting(true);
+    client.feed
+      .comment({ feed: feedId })
+      .post(
+        { content: text, parentId: comment.id },
+        { headers: headersWithAuth() }
+      )
+      .then(({ error }) => {
+        setSubmitting(false);
+        if (error) {
+          showAlert(error.value as string);
+        } else {
+          setReplyContent("");
+          setReplyOpen(false);
+          onRefresh();
+        }
+      });
+  }
   return (
-    <div className="pyq-comment-item">
-      <img src={comment.user.avatar || ""} alt="" referrerPolicy="no-referrer" />
-      <div className="pyq-comment-body">
-        <div>
-          <span className="pyq-comment-name">{comment.user.username}</span>
-          <span className="pyq-comment-time" title={new Date(comment.createdAt).toLocaleString()}>
-            {timeago(comment.createdAt)}
-          </span>
-        </div>
-        <p className="pyq-comment-content">{comment.content}</p>
-      </div>
-      {(profile?.permission || profile?.id == comment.user.id) && (
-        <Popup
-          arrow={false}
-          trigger={
-            <button className="px-2 py bg-secondary rounded-full" style={{ flex: "0 0 auto" }}>
-              <i className="ri-more-fill t-secondary"></i>
-            </button>
-          }
-          position="left center"
-        >
-          <div className="flex flex-row self-end mr-2">
-            <button
-              onClick={deleteComment}
-              aria-label={t("delete.comment.title")}
-              className="px-2 py bg-secondary rounded-full"
-            >
-              <i className="ri-delete-bin-2-line t-secondary"></i>
-            </button>
+    <div>
+      <div className="pyq-comment-item">
+        <img src={comment.user.avatar || ""} alt="" referrerPolicy="no-referrer" />
+        <div className="pyq-comment-body">
+          <div>
+            <span className="pyq-comment-name">{comment.user.username}</span>
+            <span className="pyq-comment-time" title={new Date(comment.createdAt).toLocaleString()}>
+              {timeago(comment.createdAt)}
+            </span>
           </div>
-        </Popup>
+          <p className="pyq-comment-content">{comment.content}</p>
+          <button
+            className="pyq-comment-reply-btn"
+            style={{ fontSize: 12, color: "var(--texths)", marginTop: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            onClick={() => setReplyOpen(!replyOpen)}
+          >
+            {t('comment.reply') || '回复'}
+          </button>
+        </div>
+        {(profile?.permission || profile?.id == comment.user.id) && (
+          <Popup
+            arrow={false}
+            trigger={
+              <button className="px-2 py bg-secondary rounded-full" style={{ flex: "0 0 auto" }}>
+                <i className="ri-more-fill t-secondary"></i>
+              </button>
+            }
+            position="left center"
+          >
+            <div className="flex flex-row self-end mr-2">
+              <button
+                onClick={deleteComment}
+                aria-label={t("delete.comment.title")}
+                className="px-2 py bg-secondary rounded-full"
+              >
+                <i className="ri-delete-bin-2-line t-secondary"></i>
+              </button>
+            </div>
+          </Popup>
+        )}
+        <ConfirmUI />
+        <AlertUI />
+      </div>
+      {replyOpen && (
+        <div className="pyq-comment-input" style={{ marginTop: 6 }}>
+          <textarea
+            placeholder={`回复 @${comment.user.username}`}
+            value={replyContent}
+            onChange={(e) => setReplyContent(e.target.value)}
+          />
+          <button className="pyq-btn-theme" disabled={submitting} onClick={submitReply}>
+            {t('comment.send') || '发送'}
+          </button>
+        </div>
       )}
-      <ConfirmUI />
-      <AlertUI />
+      {depth < 6 && comment.replies.length > 0 && (
+        <div style={{ marginLeft: 16, paddingLeft: 8, borderLeft: '1px solid var(--fgxys)' }}>
+          {comment.replies.map((child) => (
+            <CommentItem
+              key={child.id}
+              comment={child}
+              feedId={feedId}
+              onRefresh={onRefresh}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

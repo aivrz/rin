@@ -49,6 +49,8 @@
       "title": "说点什么吧"
     },
     "submit": "发表评论",
+    "send": "发送",
+    "reply": "回复",
     "success": "评论成功",
     "title": "评论"
   },
