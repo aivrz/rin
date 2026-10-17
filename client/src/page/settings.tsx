@@ -6,7 +6,8 @@ import Modal from "react-modal";
 import { Button } from "../components/button.tsx";
 import { useAlert, useConfirm } from "../components/dialog.tsx";
 import { client, oauth_url } from "../main.tsx";
-import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConfigValue, useClientConfig, useServerConfig } from "../state/config.tsx";
+import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConfigValue, useClientConfig, useServerConfig } from "../state/config.ts";
+import { refreshMusic } from "../state/music.ts";
 import { headersWithAuth } from "../utils/auth.ts";
 import '../utils/thumb.css';
 
@@ -27,10 +28,11 @@ function applyConfigValue(type: 'client' | 'server', key: string, value: any) {
         setServerConfigValue(key, value);
         return;
     }
+    // 播放器不在设置页挂载（TopMusicPlayer 只在 pyq 页面），订阅拿不到这次变更，
+    // 因此必须显式重载，否则返回首页后旧歌单会继续播放
     setClientConfigValue(key, value);
-    // 播放器单独缓存了歌单解析结果，需一并失效才能免刷新生效
     if (key === 'music') {
-        void reloadMusic();
+        void refreshMusic();
     }
 }
 
@@ -363,8 +365,9 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
                     }} className="rounded-xl p-2 bg-secondary min-h-32 w-full t-primary" />
                     <div className="w-full flex flex-row items-center justify-center space-x-2 mt-4">
                         <Button onClick={() => {
+                            if (loading) return;
                             setIsOpen(false);
-                            updateConfig(type, configKey, value);
+                            updateConfig(configKey, value);
                         }} title={t('confirm')} />
                         <Button secondary onClick={() => {
                             setIsOpen(false);

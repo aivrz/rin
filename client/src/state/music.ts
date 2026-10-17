@@ -44,6 +44,15 @@ function readMusicLink(): string | undefined {
     return link && link.trim() ? link.trim() : undefined;
 }
 
+/**
+ * 本次加载是否已过期：加载期间若被 refreshMusic 重置（status 变回 idle），
+ * 或 music 配置又变了，则丢弃本次结果，避免旧歌单覆盖刚保存的新配置。
+ * 经函数读取 status 以打断 TS 对 state.status 的字面量收窄（跨 await 收窄会失真）。
+ */
+function isStaleLoad(link: string): boolean {
+    return state.status !== "loading" || readMusicLink() !== link;
+}
+
 // 读取客户端配置中的歌单链接，并（在后端代理启用时）解析为可播放列表
 export async function loadMusic() {
     // 已就绪/加载中/明确未配置 时跳过；unsupported（后端暂不可用）允许 remount 时重试，便于后端上线后无需强刷即生效
@@ -63,6 +72,7 @@ export async function loadMusic() {
             const r = await fetch(`${endpoint}/music/netease/playlist?url=${encodeURIComponent(link)}`);
             if (!r.ok) throw new Error("not implemented");
             const json = await r.json() as { name?: string; list?: Song[] };
+            if (isStaleLoad(link)) return;
             setState({
                 name: json.name,
                 list: (json.list || []) as Song[],
@@ -71,28 +81,37 @@ export async function loadMusic() {
             });
         } catch {
             // 后端网易云代理尚未启用（安全闸）：优雅降级
+            if (isStaleLoad(link)) return;
             setState({ status: "unsupported" });
         }
     } catch {
+        if (isStaleLoad("")) return;
         setState({ status: "unsupported" });
     }
 }
 
-/** 配置变更（如后台保存或清空 music）后作废已解析的歌单并重新加载，播放器无需刷新页面 */
-function reloadMusic() {
-    if (state.status === "loading") return;
-    const link = readMusicLink();
-    if (link === musicLink) return;
-    musicLink = link;
+/**
+ * 作废已解析的歌单并重新加载，播放器无需刷新页面即可生效。
+ *
+ * 必须由「改配置的一方」显式调用，不能只靠组件订阅：
+ * 播放器组件 TopMusicPlayer 只在 pyq 页面挂载，而设置页走 RouteMe（只有 Header/Footer），
+ * 两者不是同一棵树。管理员停在设置页保存 music 时订阅早已退订，
+ * 只靠订阅会漏掉这次变更，返回首页后 loadMusic 又会因 status==="ready" 早退，导致旧歌单继续播放。
+ */
+export async function refreshMusic() {
     audio?.pause();
     state = { status: "idle", list: [], current: 0, playing: false };
     emit();
-    void loadMusic();
+    await loadMusic();
 }
 
-/** 订阅配置变化，返回取消订阅函数（组件卸载时调用） */
+/** 订阅配置变化（播放器已挂载时的兜底），返回取消订阅函数 */
 export function subscribeMusic() {
-    return subscribeConfig(reloadMusic);
+    return subscribeConfig(() => {
+        if (state.status === "loading") return;
+        if (readMusicLink() === musicLink) return;
+        void refreshMusic();
+    });
 }
 
 export function playSong(i: number) {

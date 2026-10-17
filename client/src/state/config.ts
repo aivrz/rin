@@ -92,10 +92,15 @@ let clientSnapshot = new ConfigWrapper(readSession(), defaultClientConfig);
 /** server 配置含 AppSecret / Token，只在内存保存，不落 sessionStorage */
 let serverSnapshot = new ConfigWrapper({}, defaultServerConfig);
 
+/**
+ * 注意：变量声明不能写 `let x?: T` —— `?` 只在类属性/方法/函数参数上合法，
+ * 变量必须写成 `let x: T | undefined`。写错会让 tsc 报 TS1005，并把后续
+ * `Promise<void>` 里的 `<void>` 误判成 JSX 标签，级联出几十条假错误。
+ */
 let clientLoaded = false;
-let clientLoading?: Promise<void>;
+let clientLoading: Promise<void> | undefined;
 let serverLoaded = false;
-let serverLoading?: Promise<void>;
+let serverLoading: Promise<void> | undefined;
 
 function replaceClientConfig(config: any) {
     clientSnapshot = new ConfigWrapper(config, defaultClientConfig);

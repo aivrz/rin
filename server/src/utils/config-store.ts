@@ -19,8 +19,9 @@ import { getDB } from "./di";
  *   - ConfigStore（本文，D1）：用户配置，不可丢，单键独立可覆盖
  *   - CacheImpl（S3）：高频可重建的公共缓存（feed 列表、sitemap、RSS/SEO 缓存）
  *
- * 对外方法名与 CacheImpl 保持一致，使 ServerConfig()/ClientConfig() 的全部业务读点
- * （cdn / wechat / oauth / friends / comments）无需任何改动。
+ * 对外提供与 CacheImpl 同名的 get / all / set / getOrDefault 等方法，
+ * 使 ServerConfig()/ClientConfig() 的全部业务读点无需任何改动
+ * （getOrDefault 是本类新增的纯读实现，CacheImpl 上已不再保留该方法）。
  */
 
 /** 迁移哨兵行键（存于 prefix 之下，加载时识别、all() 输出时过滤） */
