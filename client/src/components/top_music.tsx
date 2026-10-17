@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMusic, loadMusic, playSong, togglePlay, nextSong, prevSong } from "../state/music";
+import { useMusic, loadMusic, togglePlay, nextSong, prevSong } from "../state/music";
 
 // 顶栏单行音乐播放器：消费全局 MusicStore，音频元素挂在模块单例上，跨路由不中断。
 export function TopMusicPlayer() {

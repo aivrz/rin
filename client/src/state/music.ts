@@ -49,7 +49,7 @@ export async function loadMusic() {
         try {
             const r = await fetch(`${endpoint}/music/netease/playlist?url=${encodeURIComponent(link)}`);
             if (!r.ok) throw new Error("not implemented");
-            const json = await r.json();
+            const json = await r.json() as { name?: string; list?: Song[] };
             setState({
                 name: json.name,
                 list: (json.list || []) as Song[],
