@@ -22,7 +22,6 @@ export default defineConfig(({ mode }) => {
             if (!id.includes('node_modules')) return
             if (id.includes('monaco') || id.includes('@monaco-editor')) return 'vendor-editor'
             if (id.includes('mermaid')) return 'vendor-mermaid'
-            if (id.includes('katex') || id.includes('react-syntax-highlighter')) return 'vendor-highlighter'
             if (id.includes('yet-another-react-lightbox')) return 'vendor-lightbox'
             if (
               id.includes('react-markdown') || id.includes('rehype') || id.includes('remark') ||
