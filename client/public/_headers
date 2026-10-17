@@ -2,6 +2,13 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# public 根目录下的字体（Cantarell woff2/woff）不匹配 /assets/*，需单独声明，否则每次回源
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
 # 全局安全头（仅作用于 Pages 前端域；API Worker 由 server.ts 控制）
 /*
   Strict-Transport-Security: max-age=63072000

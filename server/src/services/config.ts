@@ -33,7 +33,12 @@ export function ConfigService() {
                     for (const key in body) {
                         await config.set(key, body[key], false);
                     }
-                    await config.save();
+                    // 落盘失败必须让管理员看到，否则会「以为存上了、刷新后才发现没存」
+                    if (!await config.save()) {
+                        console.error('Config persist failed', type, Object.keys(body));
+                        set.status = 500;
+                        return 'Failed to persist config, check worker logs';
+                    }
                     return 'OK';
                 }, {
                     body: t.Record(t.String(), t.Any())

@@ -16,6 +16,16 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
       cssCodeSplit: true,
       chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          // React 核心单独成块：内容稳定，跨版本部署可长期命中浏览器缓存。
+          // 只拆这一块，mermaid/katex/代码高亮等已由页面级 lazy 自然分离，不再手动干预，
+          // 避免 Rollup 交叉块告警。
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom'],
+          },
+        },
+      },
     },
     plugins: [
       react(),

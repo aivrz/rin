@@ -1,4 +1,4 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import path from "path";
 import Container, { Service } from "typedi";
 import type { DB } from "../_worker";
@@ -30,20 +30,57 @@ export class CacheImpl {
         // 未定义时 path.join 抛错，导致「保存返回成功但刷新后配置丢失」。
         this.cacheFolder = this.env.S3_CACHE_FOLDER || 'cache';
         const slash = this.env.S3_ACCESS_HOST.endsWith('/') ? '' : '/';
-        this.cacheUrl = this.env.S3_ACCESS_HOST + slash + path.join(this.cacheFolder, `${type}.json`);
+        this.cacheUrl = this.env.S3_ACCESS_HOST + slash + this.objectKey();
     }
 
+    /** S3 对象键：读、写共用同一寻址，从结构上杜绝两条通道指向不同对象 */
+    objectKey() {
+        return path.join(this.cacheFolder, `${this.type}.json`);
+    }
+
+    /** 把远端 JSON 合并进内存 Map */
+    absorb(data: any) {
+        if (!data || typeof data !== 'object') return;
+        for (let key in data) {
+            this.cache.set(key, data[key]);
+        }
+    }
+
+    /**
+     * 首选 S3 SDK 直读（与 save() 同 bucket、同凭证），保证「写入后立即读到新值」。
+     * 原先经 S3_ACCESS_HOST 公共地址读，若该地址挂了 CDN，会命中边缘缓存里的旧副本，
+     * 而 PUT 写的是源站；Worker 实例被回收重建后 load() 就读回不含新配置的旧 JSON，
+     * 表现为「保存返回成功、刷新后配置丢失」。公共地址保留为回退，兼容 bucket 路径不一致的部署。
+     */
     async load() {
-        console.log('Cache load', this.cacheUrl);
+        const key = this.objectKey();
         try {
-            const response = await fetch(new Request(this.cacheUrl))
-            const data = await response.json<any>()
-            for (let key in data) {
-                this.cache.set(key, data[key]);
-            }
+            const res: any = await this.s3.send(new GetObjectCommand({
+                Bucket: this.env.S3_BUCKET,
+                Key: key,
+            }));
+            const text = await new Response(res.Body).text();
+            this.absorb(text ? JSON.parse(text) : null);
             this.loaded = true;
+            console.log('Cache load ok(s3)', key);
+            return;
         } catch (e: any) {
-            console.error('Cache load failed');
+            // 对象不存在 = 首次部署的正常空状态，必须置 loaded，否则后续保存会被写入保护一直拦下
+            const status = e?.$metadata?.httpStatusCode;
+            if (status === 404 || e?.name === 'NoSuchKey' || e?.name === 'NotFound') {
+                this.loaded = true;
+                console.log('Cache load empty(s3)', key);
+                return;
+            }
+            console.warn('Cache load s3 failed, fallback to public url', key, e?.message);
+        }
+        try {
+            const response = await fetch(new Request(this.cacheUrl));
+            this.absorb(await response.json<any>());
+            this.loaded = true;
+            console.log('Cache load ok(public)', this.cacheUrl);
+        } catch (e: any) {
+            console.error('Cache load failed', key, this.cacheUrl);
             console.error(e.message);
         }
     }
@@ -95,6 +132,9 @@ export class CacheImpl {
     }
 
     async deletePrefix(prefix: string) {
+        // 冷实例上内存 Map 为空，遍历不到任何 key，等于没删；先加载再操作
+        if (!this.loaded)
+            await this.load();
         for (let key of this.cache.keys()) {
             console.log('Cache key', key);
             if (key.startsWith(prefix)) {
@@ -106,22 +146,38 @@ export class CacheImpl {
     }
 
     async clear() {
+        // 必须先加载：否则内存 Map 本就是空的，clear() 后写回会把整个文件覆盖成 {}，
+        // 而 save() 的未加载保护又会直接拒写，导致「清除缓存」静默失效。
+        if (!this.loaded)
+            await this.load();
         this.cache.clear();
         await this.save();
     }
 
-    async save() {
-        const cacheKey = path.join(this.cacheFolder, `${this.type}.json`);
-        await this.s3.send(new PutObjectCommand({
-            Bucket: this.env.S3_BUCKET,
-            Key: cacheKey,
-            Body: JSON.stringify(Object.fromEntries(this.cache))
-        })).then(() => {
+    /**
+     * @returns true 已落盘；false 未加载拒写或 PUT 失败
+     */
+    async save(): Promise<boolean> {
+        const cacheKey = this.objectKey();
+        // 未成功加载时内存 Map 可能是残缺的（只含本次写入的那一个 key），
+        // 此时写回会把 favicon/footer 等既有配置全部抹掉，故直接拒写。
+        if (!this.loaded) {
+            console.error('Cache save aborted: not loaded', cacheKey);
+            return false;
+        }
+        try {
+            await this.s3.send(new PutObjectCommand({
+                Bucket: this.env.S3_BUCKET,
+                Key: cacheKey,
+                Body: JSON.stringify(Object.fromEntries(this.cache))
+            }));
             console.log('Cache saved', cacheKey);
-        }).catch((e: any) => {
-            console.error('Cache save failed', cacheKey)
+            return true;
+        } catch (e: any) {
+            console.error('Cache save failed', cacheKey);
             console.error(e.message);
-        });
+            return false;
+        }
     }
 }
 

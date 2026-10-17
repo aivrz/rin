@@ -7,7 +7,6 @@ import { Header } from './components/header'
 import { Padding } from './components/padding'
 import { client } from './main'
 import { CallbackPage } from './page/callback'
-import { FeedPage } from './page/feed'
 import { FeedsPage } from './page/feeds'
 import { HashtagPage } from './page/hashtag.tsx'
 import { HashtagsPage } from './page/hashtags.tsx'
@@ -22,10 +21,13 @@ import { SearchPage } from './page/search.tsx'
 import { Tips, TipsPage } from './components/tips.tsx'
 import { useTranslation } from 'react-i18next'
 
-// 重页面（写作/设置/友链）按需加载，避免 monaco/primereact/mermaid 等进入首屏主包
+// 重页面按需加载，避免 monaco/primereact/mermaid/katex/代码高亮/灯箱 等重依赖进入首屏主包。
+// feed（文章详情）静态引入 components/markdown 与 mermaid（约 2.8MB），
+// 而首页列表 feeds.tsx 并不需要，故一并切出首屏。
 const WritingPage = lazy(() => import('./page/writing').then(m => ({ default: m.WritingPage })))
 const Settings = lazy(() => import('./page/settings').then(m => ({ default: m.Settings })))
 const FriendsPage = lazy(() => import('./page/friends').then(m => ({ default: m.FriendsPage })))
+const FeedPage = lazy(() => import('./page/feed').then(m => ({ default: m.FeedPage })))
 
 function App() {
   const ref = useRef(false)
