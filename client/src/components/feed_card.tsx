@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
 import { HashTag } from "./hashtag";
 import { CommentModal } from "./comment_modal";
+import { CommentItem } from "./comment_item";
+import { buildCommentTree, FlatComment } from "../utils/commentTree";
 import { useLike } from "../hooks/useLike";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { ProfileContext } from "../state/profile";
@@ -35,7 +37,7 @@ export function FeedCard({
     listed?: number,
     likes?: number,
     liked?: boolean,
-    comments?: { user: { username: string }, content: string }[],
+    comments?: FlatComment[],
 }) {
     const { t } = useTranslation();
     const { LoginModal, setIsOpened } = useLoginModal();
@@ -131,15 +133,11 @@ export function FeedCard({
                                     </ul>
                                 </div>}
                             {cmtList && cmtList.length > 0 &&
-                                <ul className="pyq-zanp-pl">
-                                    {cmtList.map((c, i) => (
-                                        <li key={i}>
-                                            <span className="pyq-zanp-pl-n-nc">{c.user.username}</span>
-                                            <span className="pyq-zanp-pl-n-huifu">：</span>
-                                            <span className="pyq-zanp-pl-n-nr">{c.content}</span>
-                                        </li>
+                                <div className="pyq-zanp-pl">
+                                    {buildCommentTree(cmtList).map((node) => (
+                                        <CommentItem key={node.id} comment={node} feedId={id} readOnly />
                                     ))}
-                                </ul>}
+                                </div>}
                         </div>}
                 </div>
             </div>
