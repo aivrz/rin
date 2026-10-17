@@ -44,6 +44,7 @@ export function setup() {
             jwt({
                 name: 'jwt',
                 secret: jwt_secret,
+                aot: false, // 禁用 JWT schema 的 JIT 编译（Type.Compile/new Function），Cloudflare Workers 默认禁止代码生成，否则启动即抛 EvalError
                 schema: t.Object({
                     id: t.Integer(),
                     username: t.Optional(t.String()),
