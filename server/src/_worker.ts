@@ -15,6 +15,7 @@ export default {
     async fetch(
         request: Request,
         env: Env,
+        ctx: ExecutionContext,
     ): Promise<Response> {
         const db = drizzle(env.DB, { schema: schema })
         Container.set(envToken, env)
@@ -25,8 +26,11 @@ export default {
             Container.set("cache", new CacheImpl());
             Container.set("server.config", new CacheImpl("server.config"));
             Container.set("client.config", new CacheImpl("client.config"));
-            // 冷实例启动预热：把 server 配置载入内存，避免首个业务请求因初次拉取 R2 配置而延迟
-            await ServerConfig().get('cdn_host');
+            // 预热仅为性能优化：改用 waitUntil 在响应返回后异步进行，不再阻塞首个响应。
+            // 原先在此处同步 await，会让每个冷实例的**所有**请求（含 CORS 预检）
+            // 都先陪等一次完整 S3 往返才进入路由匹配。
+            // 正确性由 CacheImpl 的 `if (!this.loaded) await this.load()` 懒加载兜底。
+            ctx.waitUntil(ServerConfig().get('cdn_host'));
         }
 
         return await new Elysia({ aot: false })

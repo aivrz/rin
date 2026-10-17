@@ -44,6 +44,15 @@ export const app = () => new Elysia({ aot: false })
     .use(OAuthService())
     .get('/', () => `Hi`)
     .onAfterHandle(({ request, set }) => {
+        // 站点配置绝不能被缓存：播放器与 App 初始化读 /config/client 用的是匿名 GET，
+        // 若命中边缘缓存，前台会读到不含 music 等新值的旧副本（表现为「保存成功但刷新后配置丢失」）。
+        // 这里显式下发 no-store，同时切断 Cloudflare 边缘缓存与浏览器 max-age 缓存；
+        // 仅排除 /config，其余公共数据接口（feed/hashtags/friends）的边缘缓存保持不变。
+        const pathname = new URL(request.url).pathname;
+        if (pathname === '/config' || pathname.startsWith('/config/')) {
+            set.headers['Cache-Control'] = 'no-store';
+            return;
+        }
         // 公共匿名 GET 统一加边缘缓存；用户态（带 authorization 或 token cookie）不缓存，避免串号
         if (request.method !== 'GET') return;
         const auth = request.headers.get('authorization');
