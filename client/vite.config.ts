@@ -16,21 +16,6 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
       cssCodeSplit: true,
       chunkSizeWarningLimit: 1200,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) return
-            if (id.includes('monaco') || id.includes('@monaco-editor')) return 'vendor-editor'
-            if (id.includes('mermaid')) return 'vendor-mermaid'
-            if (id.includes('yet-another-react-lightbox')) return 'vendor-lightbox'
-            if (id.includes('primereact')) return 'vendor-primereact'
-            if (id.includes('react-dom') || id.includes('react') || id.includes('scheduler')) return 'vendor-react'
-            if (id.includes('wouter')) return 'vendor-wouter'
-            if (id.includes('@elysiajs') || id.includes('elysia') || id.includes('treaty') || id.includes('rin-server')) return 'vendor-server-sdk'
-            return 'vendor'
-          }
-        }
-      }
     },
     plugins: [
       react(),
