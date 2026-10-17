@@ -2,7 +2,8 @@ import { useSyncExternalStore } from "react";
 import { endpoint } from "../main";
 import { getClientConfigSnapshot, loadClientConfig, subscribeConfig } from "./config";
 
-export type Song = { id: string; name: string; artist: string; cover?: string };
+// 极简风格：不带封面。少一次外部图片请求，也少一个第三方图床失效点。
+export type Song = { id: string; name: string; artist: string };
 
 export type MusicStatus = "idle" | "loading" | "ready" | "empty" | "unsupported";
 
@@ -33,8 +34,22 @@ function setState(patch: Partial<MusicState>) {
 
 if (audio) {
     audio.addEventListener("ended", () => nextSong());
-    audio.addEventListener("play", () => setState({ playing: true }));
+    audio.addEventListener("play", () => setState({ playing: true, reason: undefined }));
     audio.addEventListener("pause", () => setState({ playing: false }));
+    // 音频加载失败必须留下可见痕迹：此前 play().catch(() => {}) 把错误全吞了，
+    // 表现为「点了没反应、也没声音」，完全无从排查
+    // （无版权歌曲 url 为空、代理 404、Range 不被支持等都会走到这里）
+    audio.addEventListener("error", () => {
+        const code = audio.error?.code;
+        const why = code === 4
+            ? "音频地址无效或已失效"
+            : code === 3
+                ? "音频解码失败"
+                : code === 2
+                    ? "网络错误，音频拉取失败"
+                    : "音频加载失败";
+        setState({ playing: false, reason: why });
+    });
 }
 
 // 歌单链接统一取自全局配置 store（不再单独请求 /config/client），
@@ -127,9 +142,17 @@ export function subscribeMusic() {
 
 export function playSong(i: number) {
     if (!audio || !state.list[i]) return;
-    setState({ current: i });
-    audio.src = `${endpoint}/music/netease/url/${state.list[i].id}`;
-    audio.play().catch(() => { /* 自动播放被拦截或后端未启用 */ });
+    const song = state.list[i];
+    setState({ current: i, reason: undefined });
+    if (!song.id) {
+        // 上游没能解析出歌曲 id（多见于无版权歌曲），直接给出原因而不是让请求打到一个空地址
+        setState({ reason: "该歌曲缺少 id，无法播放" });
+        return;
+    }
+    audio.src = `${endpoint}/music/netease/url/${song.id}`;
+    audio.play().catch((e: any) => {
+        setState({ playing: false, reason: e?.message || "播放被浏览器拦截" });
+    });
 }
 
 export function togglePlay() {

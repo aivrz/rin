@@ -87,6 +87,23 @@ function firstUrl(data: any): string | null {
     return null;
 }
 
+/**
+ * 取歌曲 id。
+ *
+ * Meting 返回的歌曲对象**没有 id 字段**，可用字段只有 name / artist / url / pic / lrc；
+ * 歌曲 id 只出现在这些地址的查询参数里，形如 `...&type=url&id=1303026047`。
+ * 早期版本误读 `s.id`，导致每首歌 id 都是字符串 "undefined"，
+ * 前端拼出 /music/netease/url/undefined 而 404 —— 表现为「歌名能显示但永远没声音」。
+ */
+function songIdOf(s: any): string {
+    for (const field of ['url', 'lrc', 'pic']) {
+        const m = String(s?.[field] || '').match(/[?&]id=(\d+)/);
+        if (m) return m[1];
+    }
+    // 兼容个别自建 Meting 可能直接给 id 的情况
+    return s?.id === undefined || s?.id === null ? '' : String(s.id);
+}
+
 function songList(data: any): any[] {
     if (!data) return [];
     if (Array.isArray(data)) return data;
@@ -113,13 +130,14 @@ export function MusicService() {
                 }
                 try {
                     const data = await metingGet({ server: 'netease', type: ref.type, id: ref.id });
+                    // 极简风格不取封面：少一次外部图片请求，也避免把访客 IP 暴露给第三方图床。
+                    // songIdOf 仍会从 pic 的查询参数里兜底解析 id（纯字符串解析，不产生请求）。
                     const list = songList(data).map((s: any) => ({
-                        id: String(s.id),
+                        id: songIdOf(s),
                         name: s.name || '未知',
                         artist: Array.isArray(s.artist)
                             ? s.artist.join('/')
                             : s.artist || '未知歌手',
-                        cover: s.cover || '',
                     }));
                     // 单曲天然是单元素列表，专辑按其歌曲列表解析，结构对前端保持一致
                     const out = { name: REF_LABEL[ref.type], list };

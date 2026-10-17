@@ -53,6 +53,11 @@ export const app = () => new Elysia({ aot: false })
             set.headers['Cache-Control'] = 'no-store';
             return;
         }
+        // 音频流不进边缘缓存：这个路由自己返回 Range/206 响应，Cache-Control 挂在
+        // 返回的 Response 上而非 set.headers 上，下面的守卫看不到它，会被 s-maxage 覆盖。
+        // 边缘把整段音频按 200 缓存后再忽略 Range，会导致续播/拖动异常。
+        // 这里直接放行，沿用路由内的 Cache-Control（max-age=600，仅浏览器缓存）。
+        if (pathname.startsWith('/music/netease/url/')) return;
         // 公共匿名 GET 统一加边缘缓存；用户态（带 authorization 或 token cookie）不缓存，避免串号
         if (request.method !== 'GET') return;
         const auth = request.headers.get('authorization');

@@ -27,10 +27,13 @@ export function TopMusicPlayer() {
                 </button>
                 <div className="pyq-mini-meta">
                     <span className={"pyq-mini-title" + (m.playing ? " is-playing" : "")}>
-                        {cur?.cover
-                            ? <img className="pyq-mini-cover" src={cur.cover} alt="" referrerPolicy="no-referrer" />
-                            : <i className="ri-music-2-line pyq-mini-nocover" />}
-                        <span className="pyq-mini-text">{cur ? `${cur.name} - ${cur.artist || "未知歌手"}` : "未播放"}</span>
+                        <i className="ri-music-2-line pyq-mini-nocover" />
+                        {/* 播放失败时用真实原因替代歌名：否则表现为「有歌名却没声音」，无从判断是加载失败还是被浏览器拦截 */}
+                        <span className="pyq-mini-text" title={m.reason || undefined}>
+                            {m.reason
+                                ? `⚠ ${m.reason}`
+                                : cur ? `${cur.name} - ${cur.artist || "未知歌手"}` : "未播放"}
+                        </span>
                     </span>
                 </div>
             </div>
