@@ -15,8 +15,7 @@ import { OAuthService } from './services/oauth';
 
 export const app = () => new Elysia({ aot: false })
     .use(cors({
-        aot: false,
-        origin: '*',
+        origin: true,
         methods: '*',
         allowedHeaders: [
             'authorization',
