@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('mermaid')) return 'vendor-mermaid'
             if (id.includes('yet-another-react-lightbox')) return 'vendor-lightbox'
             if (
+              id.includes('katex') ||
               id.includes('react-markdown') || id.includes('rehype') || id.includes('remark') ||
               id.includes('unified') || id.includes('mdast') || id.includes('hast') ||
               id.includes('micromark') || id.includes('vfile') || id.includes('bail') ||
