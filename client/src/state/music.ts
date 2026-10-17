@@ -12,6 +12,8 @@ export interface MusicState {
     list: Song[];
     current: number;
     playing: boolean;
+    /** 失败/降级时的真实原因（如上游实例域名失效 ENOTFOUND），用于界面提示 */
+    reason?: string;
 }
 
 // 模块级单例音频元素：不随路由切换（顶栏 remount）而重置，保证跨页面连续播放
@@ -70,7 +72,16 @@ export async function loadMusic() {
         }
         try {
             const r = await fetch(`${endpoint}/music/netease/playlist?url=${encodeURIComponent(link)}`);
-            if (!r.ok) throw new Error("not implemented");
+            if (!r.ok) {
+                // 后端会把真实失败原因放在 detail（如上游 Meting 实例域名失效 ENOTFOUND），
+                // 直接抛状态码只会得到一句无信息量的「暂不支持该平台」
+                let detail = `HTTP ${r.status}`;
+                try {
+                    const body = await r.json() as { detail?: string };
+                    if (body?.detail) detail = body.detail;
+                } catch { /* 非 JSON 响应，保留状态码 */ }
+                throw new Error(detail);
+            }
             const json = await r.json() as { name?: string; list?: Song[] };
             if (isStaleLoad(link)) return;
             setState({
@@ -79,14 +90,14 @@ export async function loadMusic() {
                 status: "ready",
                 current: 0,
             });
-        } catch {
-            // 后端网易云代理尚未启用（安全闸）：优雅降级
+        } catch (e: any) {
+            // 后端代理未启用 / 上游实例挂掉：优雅降级，并把原因带给界面
             if (isStaleLoad(link)) return;
-            setState({ status: "unsupported" });
+            setState({ status: "unsupported", reason: e?.message || String(e) });
         }
     } catch {
         if (isStaleLoad("")) return;
-        setState({ status: "unsupported" });
+        setState({ status: "unsupported", reason: "config load failed" });
     }
 }
 

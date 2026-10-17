@@ -37,14 +37,17 @@ export function TopMusicPlayer() {
         );
     }
 
+    // 有真实失败原因时优先展示它。「暂不支持该平台」是误导性的说法：
+    // 平台是支持的，通常是上游 Meting 公益实例域名失效（ENOTFOUND）之类的外部故障。
     const hint =
         m.status === "loading" ? "加载中…"
             : m.status === "empty" ? "未配置背景音乐"
-                : "暂不支持该平台";
+                : m.reason ? `不可用：${m.reason}` : "暂不支持该平台";
 
+    // 失败原因可能较长，悬停可看全；title 也让读屏软件能读到当前状态
     return (
         <div className="pyq-mini-player">
-            <button className="pyq-mini-btn pyq-mini-lead" aria-label="背景音乐" title="背景音乐" disabled>
+            <button className="pyq-mini-btn pyq-mini-lead" aria-label="背景音乐" title={hint} disabled>
                 <i className="ri-music-2-line" />
             </button>
             <div className="pyq-mini-meta">

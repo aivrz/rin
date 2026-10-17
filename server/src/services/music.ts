@@ -1,8 +1,27 @@
 import Elysia from 'elysia';
 
-// 网易云音乐薄代理：不自写 weapi，改为转发 Meting API（默认公开实例，可用 METING_API 环境变量指向自托管实例）。
-// 歌单解析由其完成；音频经本 Worker 流式代理（带 Referer），规避浏览器端 CORS 与直链失效。
-const METING_API = (process.env.METING_API || 'https://api.i-meting.com/api').replace(/\/+$/, '');
+// 网易云音乐薄代理：不自写 weapi，改为转发 Meting API（音频经本 Worker 流式代理，带 Referer，
+// 规避浏览器端 CORS 与直链失效）。
+//
+// 用实例列表而不是写死单个域名：公益实例随时可能停服或域名失效——
+// api.i-meting.com 已 ENOTFOUND，api.mizk.cn / api.tune-api.com 同样解析失败。
+// 单点写死会让「音乐不可用」变成只能翻 Worker 日志才能定位的问题。
+// METING_API 环境变量可指定逗号分隔的实例列表，生产环境强烈建议指向自建实例。
+const DEFAULT_METING_APIS = ['https://api.injahow.cn/meting/'];
+
+function metingApis(): string[] {
+    const custom = (process.env.METING_API || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const list = custom.length > 0 ? custom : DEFAULT_METING_APIS;
+    return list.map((u) => u.replace(/\/+$/, ''));
+}
+
+/** 把底层 fetch 异常翻译成可读原因（DNS 失效 / 超时 / HTTP 状态），用于日志与响应 detail */
+function describeError(e: any): string {
+    if (e?.name === 'AbortError') return 'timeout';
+    const msg = e?.message || String(e);
+    const code = e?.cause?.code || e?.code;
+    return code ? `${msg} (${code})` : msg;
+}
 
 // Worker 隔离环境内的短 TTL 内存缓存，降低对 Meting API 的调用频率（歌单变更不频繁）。
 const playlistCache = new Map<string, { ts: number; data: any }>();
@@ -31,20 +50,28 @@ function parseNeteaseLink(link: string): NeteaseRef | null {
     return { type, id: idMatch[1] };
 }
 
+/** 依次尝试各实例，返回首个成功结果；全部失败时抛出聚合了每个实例原因的错误 */
 async function metingGet(params: Record<string, string>, timeoutMs = 8000): Promise<any> {
     const qs = new URLSearchParams(params).toString();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-        const res = await fetch(`${METING_API}?${qs}`, {
-            signal: ctrl.signal,
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-        });
-        if (!res.ok) throw new Error(`Meting API ${res.status}`);
-        return await res.json();
-    } finally {
-        clearTimeout(timer);
+    const failures: string[] = [];
+    for (const base of metingApis()) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        try {
+            const res = await fetch(`${base}?${qs}`, {
+                signal: ctrl.signal,
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        } catch (e: any) {
+            failures.push(`${base} -> ${describeError(e)}`);
+            console.warn('meting instance failed, trying next', base, describeError(e));
+        } finally {
+            clearTimeout(timer);
+        }
     }
+    throw new Error(`all meting instances failed: ${failures.join('; ')}`);
 }
 
 function firstUrl(data: any): string | null {
@@ -98,24 +125,29 @@ export function MusicService() {
                     const out = { name: REF_LABEL[ref.type], list };
                     playlistCache.set(cacheKey, { ts: Date.now(), data: out });
                     return out;
-                } catch (e) {
-                    console.error('netease resolve failed', ref, e);
+                } catch (e: any) {
+                    const detail = describeError(e);
+                    console.error('netease resolve failed', ref, detail);
                     set.status = 502;
-                    return { error: 'resolve failed' };
+                    // 必须带上真实原因：最常见的故障是公益实例域名失效（ENOTFOUND），
+                    // 只回一句 resolve failed 会让人误以为是站点代码的问题
+                    return { error: 'resolve failed', detail };
                 }
             })
             .get('/netease/url/:id', async ({ set, params, request }) => {
                 const id = params.id;
                 let audioUrl: string | null = null;
+                let resolveDetail = '';
                 try {
                     const data = await metingGet({ server: 'netease', type: 'song', id });
                     audioUrl = firstUrl(data);
-                } catch (e) {
-                    console.error('netease url resolve failed', e);
+                } catch (e: any) {
+                    resolveDetail = describeError(e);
+                    console.error('netease url resolve failed', resolveDetail);
                 }
                 if (!audioUrl) {
                     set.status = 404;
-                    return { error: 'not found' };
+                    return { error: 'not found', detail: resolveDetail || 'no url returned' };
                 }
                 const range = request.headers.get('range') || undefined;
                 let upstream: Response;
