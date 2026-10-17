@@ -6,7 +6,7 @@ import type { Env } from "../db/db";
 import * as schema from "../db/schema";
 import { friends } from "../db/schema";
 import { setup } from "../setup";
-import { ClientConfig, ServerConfig } from "../utils/cache";
+import { ClientConfig, ServerConfig } from "../utils/config-store";
 import { Config } from "../utils/config";
 import { getDB, getEnv } from "../utils/di";
 import { notify } from "../utils/webhook";

@@ -13,7 +13,7 @@ import { HashtagsPage } from './page/hashtags.tsx'
 import { NavPage } from './page/nav'
 import { PinnedPage } from './page/pinned'
 import { TimelinePage } from './page/timeline'
-import { ClientConfigContext, ConfigWrapper, defaultClientConfig } from './state/config.tsx'
+import { ClientConfigContext, loadClientConfig, useClientConfig } from './state/config.tsx'
 import { Profile, ProfileContext } from './state/profile'
 import { headersWithAuth } from './utils/auth'
 import { tryInt } from './utils/int'
@@ -33,7 +33,8 @@ function App() {
   const ref = useRef(false)
   const { t } = useTranslation()
   const [profile, setProfile] = useState<Profile | undefined>()
-  const [config, setConfig] = useState<ConfigWrapper>(new ConfigWrapper({}, new Map()))
+  // 唯一数据源：模块级配置 store。首帧用 sessionStorage 缓存同步渲染，随后后台校验最新值。
+  const config = useClientConfig()
   useEffect(() => {
     if (ref.current) return
     if (getCookie('token')?.length ?? 0 > 0) {
@@ -50,20 +51,7 @@ function App() {
         }
       })
     }
-    const config = sessionStorage.getItem('config')
-    if (config) {
-      const configObj = JSON.parse(config)
-      const configWrapper = new ConfigWrapper(configObj, defaultClientConfig)
-      setConfig(configWrapper)
-    } else {
-      client.config({ type: "client" }).get().then(({ data }) => {
-        if (data && typeof data !== 'string') {
-          sessionStorage.setItem('config', JSON.stringify(data))
-          const config = new ConfigWrapper(data, defaultClientConfig)
-          setConfig(config)
-        }
-      })
-    }
+    loadClientConfig()
     ref.current = true
   }, [])
   const favicon = useMemo(() => config.get<string>("favicon"), [config])

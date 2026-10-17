@@ -96,6 +96,12 @@ export class CacheImpl {
         }
         return this.cache.get(key);
     }
+    /**
+     * 真缓存专用：未命中时计算并写回。
+     * 注意语义差异——本方法会把整份内存快照写回 S3，因此**不得**用于「用户配置」：
+     * 读配置时调它会把快照里的旧值覆盖回存储（历史上 music 被反复抹除的根因）。
+     * 站点配置见 utils/config-store.ts 的 ConfigStore（落 D1，逐键 upsert）。
+     */
     async getOrSet<T>(key: string, value: () => Promise<T>) {
         const cached = await this.get(key)
         if (cached !== undefined) {
@@ -107,11 +113,6 @@ export class CacheImpl {
         await this.set(key, newValue);
         return newValue;
     }
-
-    async getOrDefault<T>(key: string, defaultValue: T) {
-        return this.getOrSet(key, async () => defaultValue);
-    }
-    
 
     async set(key: string, value: any, save: boolean = true) {
         if (!this.loaded)
@@ -145,13 +146,14 @@ export class CacheImpl {
         await this.save();
     }
 
-    async clear() {
+    /** @returns true 已落盘；false 未加载拒写或 PUT 失败 */
+    async clear(): Promise<boolean> {
         // 必须先加载：否则内存 Map 本就是空的，clear() 后写回会把整个文件覆盖成 {}，
         // 而 save() 的未加载保护又会直接拒写，导致「清除缓存」静默失效。
         if (!this.loaded)
             await this.load();
         this.cache.clear();
-        await this.save();
+        return await this.save();
     }
 
     /**
@@ -181,6 +183,8 @@ export class CacheImpl {
     }
 }
 
+/**
+ * 公共缓存：承载高频可重建数据（feed 列表、sitemap、RSS/SEO 缓存）。
+ * DO NOT USE THIS TO STORE SENSITIVE DATA，也**不可**用于站点配置（见 config-store.ts）。
+ */
 export const PublicCache = () => Container.get<CacheImpl>("cache");
-export const ServerConfig = () => Container.get<CacheImpl>("server.config");
-export const ClientConfig = () => Container.get<CacheImpl>("client.config");

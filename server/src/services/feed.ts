@@ -5,7 +5,8 @@ import html2md from 'html-to-md';
 import type { DB } from "../_worker";
 import { comments, feeds, likes, visits } from "../db/schema";
 import { setup } from "../setup";
-import { ClientConfig, PublicCache } from "../utils/cache";
+import { PublicCache } from "../utils/cache";
+import { ClientConfig } from "../utils/config-store";
 import { getDB, getEnv } from "../utils/di";
 import { extractImage, extractImages } from "../utils/image";
 import { cdnHost, rewriteCdnStr } from "../utils/cdn";
@@ -565,7 +566,7 @@ export function FeedService() {
                 }
                 success++;
             }
-            PublicCache().deletePrefix('feeds_');
+            await PublicCache().deletePrefix('feeds_');
             return {
                 success,
                 skipped,

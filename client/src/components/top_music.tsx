@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { useMusic, loadMusic, togglePlay, nextSong, prevSong } from "../state/music";
+import { useMusic, loadMusic, subscribeMusic, togglePlay, nextSong, prevSong } from "../state/music";
 
 // 顶栏单行音乐播放器：消费全局 MusicStore，音频元素挂在模块单例上，跨路由不中断。
 export function TopMusicPlayer() {
     const m = useMusic();
     useEffect(() => {
         loadMusic();
+        // 监听配置变化：后台保存/清空 music 后无需刷新页面即可生效
+        return subscribeMusic();
     }, []);
 
     const cur = m.list[m.current];

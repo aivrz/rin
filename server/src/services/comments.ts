@@ -4,7 +4,7 @@ import type { DB } from "../_worker";
 import type { Env } from "../db/db";
 import { comments, feeds, users } from "../db/schema";
 import { setup } from "../setup";
-import { ServerConfig } from "../utils/cache";
+import { ServerConfig } from "../utils/config-store";
 import { Config } from "../utils/config";
 import { getDB, getEnv } from "../utils/di";
 import { notify } from "../utils/webhook";

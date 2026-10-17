@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, oauthIdentities } from "../db/schema";
 import { setup } from "../setup";
-import { ServerConfig } from "../utils/cache";
+import { ServerConfig } from "../utils/config-store";
 
 // erphplogin 整合：QQ / 微博 / 微信网页授权 三种 OAuth 登录。
 // 微信网页授权（snsapi_userinfo）需要认证「服务号」资质，订阅号无法使用，未具备时该入口置灰。

@@ -1,4 +1,4 @@
-import { ServerConfig } from "./cache";
+import { ServerConfig } from "./config-store";
 import type { Env } from "../db/db";
 
 // cdn_host 解析：后端设置（server.config）优先，环境变量兜底；空白视为未开启 CDN。

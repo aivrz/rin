@@ -1,14 +1,38 @@
 import * as Switch from '@radix-ui/react-switch';
-import { ChangeEvent, useContext, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactLoading from "react-loading";
 import Modal from "react-modal";
 import { Button } from "../components/button.tsx";
 import { useAlert, useConfirm } from "../components/dialog.tsx";
 import { client, oauth_url } from "../main.tsx";
-import { ClientConfigContext, ConfigWrapper, defaultClientConfig, defaultClientConfigWrapper, defaultServerConfig, defaultServerConfigWrapper, ServerConfigContext } from "../state/config.tsx";
+import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConfigValue, useClientConfig, useServerConfig } from "../state/config.tsx";
 import { headersWithAuth } from "../utils/auth.ts";
 import '../utils/thumb.css';
+
+/**
+ * Eden Treaty 对非 2xx 响应是 resolve 而不是 reject，错误体放在 error 字段。
+ * 它可能是字符串（如 'Unauthorized' / 'Rejected keys: xxx'），
+ * 直接读 err.message 会得到 undefined，界面上只出现空错误信息。
+ */
+function errorMessage(err: any): string {
+    if (!err) return '';
+    if (typeof err === 'string') return err;
+    return err.message || err.statusText || String(err);
+}
+
+/** 保存成功后推送到全局 store：立即生效，无需 F5 */
+function applyConfigValue(type: 'client' | 'server', key: string, value: any) {
+    if (type !== 'client') {
+        setServerConfigValue(key, value);
+        return;
+    }
+    setClientConfigValue(key, value);
+    // 播放器单独缓存了歌单解析结果，需一并失效才能免刷新生效
+    if (key === 'music') {
+        void reloadMusic();
+    }
+}
 
 
 export function Settings() {
@@ -16,47 +40,20 @@ export function Settings() {
     const [isOpen, setIsOpen] = useState(false);
     const [msg, setMsg] = useState('');
     const [msgList, setMsgList] = useState<{ title: string, reason: string }[]>([]);
-    const [clientLoading, setClientLoading] = useState(true);
-    const [serverLoading, setServerLoading] = useState(true);
-    const [clientConfig, setClientConfig] = useState<ConfigWrapper>(defaultClientConfigWrapper);
-    const [serverConfig, setServerConfig] = useState<ConfigWrapper>(defaultServerConfigWrapper);
-    const ref = useRef(false);
+    const [loading, setLoading] = useState(true);
     const { showAlert, AlertUI } = useAlert();
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-
+    // 与 App 层共用同一个全局配置 store：此处不再自建影子 Provider，
+    // 否则保存后 App 层快照不变，表现为「保存成功但页面毫无变化」。
     useEffect(() => {
-        if (ref.current) return;
-        client.config({
-            type: 'client'
-        }).get({
-            headers: headersWithAuth()
-        }).then(({ data }) => {
-            if (data && typeof data !== 'string') {
-                sessionStorage.setItem('config', JSON.stringify(data));
-                const config = new ConfigWrapper(data, defaultClientConfig)
-                setClientConfig(config)
-            }
-        }).catch((err: any) => {
-            showAlert(t('settings.get_config_failed$message', { message: err.message }))
-        }).finally(() => {
-            setClientLoading(false);
-        })
-        client.config({
-            type: 'server'
-        }).get({
-            headers: headersWithAuth()
-        }).then(({ data }) => {
-            if (data && typeof data !== 'string') {
-                const config = new ConfigWrapper(data, defaultServerConfig)
-                setServerConfig(config)
-            }
-        }).catch((err) => {
-            showAlert(t('settings.get_config_failed$message', { message: err.message }))
-        }).finally(() => {
-            setServerLoading(false);
-        })
-        ref.current = true;
+        let mounted = true;
+        // force=true：进入设置页强制回源一次，避免展示过期的 sessionStorage 缓存
+        Promise.all([loadClientConfig(true), loadServerConfig(true)])
+            .finally(() => {
+                if (mounted) setLoading(false);
+            });
+        return () => { mounted = false; };
     }, []);
 
     function onFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -72,66 +69,62 @@ export function Settings() {
                     setMsgList(data.skippedList)
                     setIsOpen(true);
                 }
-            }).catch((err) => {
-                showAlert(t('settings.import_failed$message', { message: err.message }))
+            }).catch((err: any) => {
+                showAlert(t('settings.import_failed$message', { message: errorMessage(err) }))
             })
         }
     }
 
     return (
         <div className="flex flex-col justify-center items-center">
-            <ServerConfigContext.Provider value={serverConfig}>
-                <ClientConfigContext.Provider value={clientConfig}>
-                    <main className="wauto rounded-2xl bg-w m-2 p-6" aria-label="正文">
-                        <div className="flex flex-row items-center space-x-2">
-                            <h1 className="text-2xl font-bold t-primary">
-                                {t('settings.title')}
-                            </h1>
-                            {(clientLoading || serverLoading) && <ReactLoading width="1em" height="1em" type="spin" color="#FC466B" />}
-                        </div>
-                        <div className="flex flex-col items-start space-y-2">
-                            <ItemTitle title={t('settings.friend.title')} />
-                            <ItemSwitch title={t('settings.friend.apply.title')} description={t('settings.friend.apply.desc')} type="client" configKey="friend_apply_enable" />
-                            <ItemSwitch title={t('settings.friend.health.title')} description={t('settings.friend.health.desc')} type="server" configKey="friend_crontab" />
-                            <ItemInput title={t('settings.friend.health.ua.title')} description={t('settings.friend.health.ua.desc')} type="server" configKey="friend_ua" configKeyTitle="User-Agent" />
-                            <ItemTitle title={t('settings.other.title')} />
-                            <ItemSwitch title={t('settings.login.enable.title')} description={t('settings.login.enable.desc', {"url": oauth_url})} type="client" configKey="login.enabled" />
-                            <ItemSwitch title={t('settings.comment.enable.title')} description={t('settings.comment.enable.desc')} type="client" configKey="comment.enabled" />
-                            <ItemSwitch title={t('settings.counter.enable.title')} description={t('settings.counter.enable.desc')} type="client" configKey="counter.enabled" />
-                            <ItemTitle title="背景音乐" />
-                            <ItemInput title="网易云音乐" description={`粘贴网易云音乐的歌单 / 单曲 / 专辑链接均可，例如歌单 https://music.163.com/playlist?id=123456、单曲 https://music.163.com/#/song?id=1303026047、专辑 https://music.163.com/#/album?id=123456。单曲会作为单个曲目播放，专辑按其歌曲列表解析。目前仅支持网易云音乐，其它平台暂不支持。`} type="client" configKey="music" configKeyTitle="Music Playlist URL" />
-                            <ItemTitle title="第三方登录" />
-                            <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
-                            <ItemInput title="QQ AppKey" description="QQ 互联应用 AppKey（即 AppSecret）" type="server" configKey="qq_appkey" configKeyTitle="QQ AppKey" />
-                            <ItemInput title="微博 AppKey" description={`在 https://open.weibo.com 创建应用；回调地址填 ${origin}/user/weibo/callback`} type="server" configKey="weibo_appkey" configKeyTitle="微博 AppKey" />
-                            <ItemInput title="微博 AppSecret" description="微博开放平台应用 AppSecret" type="server" configKey="weibo_appsecret" configKeyTitle="微博 AppSecret" />
-                            <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 配置网页授权域名；回调 ${origin}/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
-                            <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
-                            <ItemInput title="公众号扫码 AppID" description="erphp-weixin-scan 插件对接：公众号 AppID" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
-                            <ItemInput title="公众号扫码 AppSecret" description="erphp-weixin-scan 插件对接：公众号 AppSecret" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
-                            <ItemInput title="公众号扫码 Token" description="与 erphp-weixin-scan 插件一致的 Token（消息回调签名校验用）" type="server" configKey="ews_token" configKeyTitle="EWS Token" />
-                            <ItemInput title="公众号扫码二维码地址" description="erphp-weixin-scan 插件生成的关注二维码图片地址，填到 ews_qrcode_url" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
-                            <ItemTitle title="CDN 加速（七牛镜像回源）" />
-                            <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
-                            <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
-                            <ItemInput title={t('settings.favicon.title')} description={t('settings.favicon.desc')} type="client" configKey="favicon" configKeyTitle="Favicon" />
-                            <ItemInput title={t('settings.footer.title')} description={t('settings.footer.desc')} type="client" configKey="footer" configKeyTitle="Footer HTML" />
-                            <ItemButton title={t('settings.cache.clear.title')} description={t('settings.cache.clear.desc')} buttonTitle={t('clear')} onConfirm={async () => {
-                                await client.config.cache.delete(undefined, {
-                                    headers: headersWithAuth()
-                                })
-                                    .then(({ error }: { error: any }) => {
-                                        if (error) {
-                                            showAlert(t('settings.cache.clear_failed$message', { message: error.message }))
-                                        }
-                                    })
-                            }} alertTitle={t('settings.cache.clear.confirm.title')} alertDescription={t('settings.cache.clear.confirm.desc')} />
-                            <ItemWithUpload title={t('settings.wordpress.title')} description={t('settings.wordpress.desc')}
-                                onFileChange={onFileChange} />
-                        </div>
-                    </main>
-                </ClientConfigContext.Provider>
-            </ServerConfigContext.Provider>
+            <main className="wauto rounded-2xl bg-w m-2 p-6" aria-label="正文">
+                <div className="flex flex-row items-center space-x-2">
+                    <h1 className="text-2xl font-bold t-primary">
+                        {t('settings.title')}
+                    </h1>
+                    {loading && <ReactLoading width="1em" height="1em" type="spin" color="#FC466B" />}
+                </div>
+                <div className="flex flex-col items-start space-y-2">
+                    <ItemTitle title={t('settings.friend.title')} />
+                    <ItemSwitch title={t('settings.friend.apply.title')} description={t('settings.friend.apply.desc')} type="client" configKey="friend_apply_enable" />
+                    <ItemSwitch title={t('settings.friend.health.title')} description={t('settings.friend.health.desc')} type="server" configKey="friend_crontab" />
+                    <ItemInput title={t('settings.friend.health.ua.title')} description={t('settings.friend.health.ua.desc')} type="server" configKey="friend_ua" configKeyTitle="User-Agent" />
+                    <ItemTitle title={t('settings.other.title')} />
+                    <ItemSwitch title={t('settings.login.enable.title')} description={t('settings.login.enable.desc', { "url": oauth_url })} type="client" configKey="login.enabled" />
+                    <ItemSwitch title={t('settings.comment.enable.title')} description={t('settings.comment.enable.desc')} type="client" configKey="comment.enabled" />
+                    <ItemSwitch title={t('settings.counter.enable.title')} description={t('settings.counter.enable.desc')} type="client" configKey="counter.enabled" />
+                    <ItemTitle title="背景音乐" />
+                    <ItemInput title="网易云音乐" description={`粘贴网易云音乐的歌单 / 单曲 / 专辑链接均可，例如歌单 https://music.163.com/playlist?id=123456、单曲 https://music.163.com/#/song?id=1303026047、专辑 https://music.163.com/#/album?id=123456。单曲会作为单个曲目播放，专辑按其歌曲列表解析。目前仅支持网易云音乐，其它平台暂不支持。`} type="client" configKey="music" configKeyTitle="Music Playlist URL" />
+                    <ItemTitle title="第三方登录" />
+                    <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
+                    <ItemInput title="QQ AppKey" description="QQ 互联应用 AppKey（即 AppSecret）" type="server" configKey="qq_appkey" configKeyTitle="QQ AppKey" />
+                    <ItemInput title="微博 AppKey" description={`在 https://open.weibo.com 创建应用；回调地址填 ${origin}/user/weibo/callback`} type="server" configKey="weibo_appkey" configKeyTitle="微博 AppKey" />
+                    <ItemInput title="微博 AppSecret" description="微博开放平台应用 AppSecret" type="server" configKey="weibo_appsecret" configKeyTitle="微博 AppSecret" />
+                    <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 配置网页授权域名；回调 ${origin}/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
+                    <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
+                    <ItemInput title="公众号扫码 AppID" description="erphp-weixin-scan 插件对接：公众号 AppID" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
+                    <ItemInput title="公众号扫码 AppSecret" description="erphp-weixin-scan 插件对接：公众号 AppSecret" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
+                    <ItemInput title="公众号扫码 Token" description="与 erphp-weixin-scan 插件一致的 Token（消息回调签名校验用）" type="server" configKey="ews_token" configKeyTitle="EWS Token" />
+                    <ItemInput title="公众号扫码二维码地址" description="erphp-weixin-scan 插件生成的关注二维码图片地址，填到 ews_qrcode_url" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
+                    <ItemTitle title="CDN 加速（七牛镜像回源）" />
+                    <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
+                    <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
+                    <ItemInput title={t('settings.favicon.title')} description={t('settings.favicon.desc')} type="client" configKey="favicon" configKeyTitle="Favicon" />
+                    <ItemInput title={t('settings.footer.title')} description={t('settings.footer.desc')} type="client" configKey="footer" configKeyTitle="Footer HTML" />
+                    <ItemButton title={t('settings.cache.clear.title')} description={t('settings.cache.clear.desc')} buttonTitle={t('clear')} onConfirm={async () => {
+                        await client.config.cache.delete(undefined, {
+                            headers: headersWithAuth()
+                        })
+                            .then(({ error }: { error: any }) => {
+                                if (error) {
+                                    showAlert(t('settings.cache.clear_failed$message', { message: errorMessage(error) }))
+                                }
+                            })
+                    }} alertTitle={t('settings.cache.clear.confirm.title')} alertDescription={t('settings.cache.clear.confirm.desc')} />
+                    <ItemWithUpload title={t('settings.wordpress.title')} description={t('settings.wordpress.desc')}
+                        onFileChange={onFileChange} />
+                </div>
+            </main>
             <Modal isOpen={isOpen}
 
                 style={{
@@ -199,21 +192,24 @@ function ItemTitle({ title }: { title: string }) {
 }
 
 function ItemSwitch({ title, description, type, configKey }: { title: string, description: string, configKey: string, type: 'client' | 'server' }) {
-    const config = type === 'client' ? useContext(ClientConfigContext) : useContext(ServerConfigContext);
-    const defaultValue = config?.default<boolean>(configKey);
-    const [checked, setChecked] = useState(defaultValue);
+    // 两个 hook 都无条件调用（同一 store 的两个快照），避免条件调用 hook
+    const clientConfig = useClientConfig();
+    const serverConfig = useServerConfig();
+    const config = type === 'client' ? clientConfig : serverConfig;
+    const [checked, setChecked] = useState<boolean>(() => !!config.get<boolean>(configKey));
     const [loading, setLoading] = useState(false);
     const { showAlert, AlertUI } = useAlert();
     const { t } = useTranslation();
+    // 服务端配置到达 / 保存结果确定后统一按 store 校准显示：
+    // 提交中不动，失败时 store 未变会自动回到原值，成功时 store 已是新值。
     useEffect(() => {
-        const value = config?.get<boolean>(configKey);
-        if (value !== undefined) {
-            setChecked(value);
-        }
-    }, [config]);
-    function updateConfig(type: 'client' | 'server', key: string, value: any) {
-        const checkedValue = checked
-        setChecked(!checkedValue);
+        if (loading) return;
+        const value = config.get<boolean>(configKey);
+        if (value !== undefined) setChecked(!!value);
+    }, [config, configKey, loading]);
+    function updateConfig(key: string, value: any) {
+        const previous = checked;
+        setChecked(!previous); // 乐观更新
         setLoading(true);
         client.config({
             type
@@ -223,20 +219,16 @@ function ItemSwitch({ title, description, type, configKey }: { title: string, de
             headers: headersWithAuth()
         }).then(({ error }: { error: any }) => {
             if (error) {
-                setChecked(checkedValue);
+                showAlert(t('settings.update_failed$message', { message: errorMessage(error) }))
+                setChecked(previous);
+                setLoading(false);
+                return;
             }
-            if (type === 'client') {
-                const config = sessionStorage.getItem('config')
-                if (config) {
-                    sessionStorage.setItem('config', JSON.stringify({ ...JSON.parse(config), [key]: value }));
-                } else {
-                    sessionStorage.setItem('config', JSON.stringify({ [key]: value }));
-                }
-            }
+            applyConfigValue(type, key, value);
             setLoading(false);
-        }).catch((err) => {
-            showAlert(t('settings.update_failed$message', { message: err.message }))
-            setChecked(checkedValue);
+        }).catch((err: any) => {
+            showAlert(t('settings.update_failed$message', { message: errorMessage(err) }))
+            setChecked(previous);
             setLoading(false);
         })
     }
@@ -253,8 +245,9 @@ function ItemSwitch({ title, description, type, configKey }: { title: string, de
                 </div>
                 <div className="flex flex-row items-center justify-center space-x-4">
                     {loading && <ReactLoading width="1em" height="1em" type="spin" color="#FC466B" />}
-                    <Switch.Root className="SwitchRoot" checked={checked} onCheckedChange={() => {
-                        updateConfig(type, configKey, !checked);
+                    {/* 提交中禁用：避免连点造成乱序写入，也避免用过期闭包值算出错误的新值 */}
+                    <Switch.Root className="SwitchRoot" checked={checked} disabled={loading} onCheckedChange={(next) => {
+                        updateConfig(configKey, next);
                     }}>
                         <Switch.Thumb className="SwitchThumb" />
                     </Switch.Root>
@@ -266,7 +259,10 @@ function ItemSwitch({ title, description, type, configKey }: { title: string, de
 }
 
 function ItemInput({ title, configKeyTitle, description, type, configKey }: { title: string, description: string, configKeyTitle: string, configKey: string, type: 'client' | 'server' }) {
-    const config = type === 'client' ? useContext(ClientConfigContext) : useContext(ServerConfigContext);
+    // 两个 hook 都无条件调用（同一 store 的两个快照），避免条件调用 hook
+    const clientConfig = useClientConfig();
+    const serverConfig = useServerConfig();
+    const config = type === 'client' ? clientConfig : serverConfig;
     const defaultValue = config?.default<string>(configKey);
     const [value, setValue] = useState("");
     const [loading, setLoading] = useState(false);
@@ -275,13 +271,17 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
     const { showAlert, AlertUI } = useAlert();
 
     const { t } = useTranslation();
+    // 配置到达后回填；弹窗打开期间不覆盖，避免把管理员正在输入的内容冲掉
     useEffect(() => {
-        const value = config?.get<string>(configKey);
-        if (value !== undefined) {
-            setValue(value);
-        }
-    }, [config]);
-    function updateConfig(type: 'client' | 'server', key: string, value: any) {
+        if (isOpen) return;
+        setValue(config?.get<string>(configKey) ?? "");
+    }, [config, configKey, isOpen]);
+    // 打开弹窗时按当前已保存值重新载入，不沿用上次取消时留下的草稿
+    function openEditor() {
+        setValue(config?.get<string>(configKey) ?? "");
+        setIsOpen(true);
+    }
+    function updateConfig(key: string, value: any) {
         setLoading(true);
         client.config({
             type
@@ -289,19 +289,20 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
             [key]: value
         }, {
             headers: headersWithAuth()
-        }).then(() => {
-            if (type === 'client') {
-                const config = sessionStorage.getItem('config')
-                if (config) {
-                    sessionStorage.setItem('config', JSON.stringify({ ...JSON.parse(config), [key]: value }));
-                } else {
-                    sessionStorage.setItem('config', JSON.stringify({ [key]: value }));
-                }
+        }).then(({ error }: { error: any }) => {
+            // Eden Treaty 对非 2xx 是 resolve 而非 reject，错误体在 error 字段。
+            // 旧代码写成 .then(() => ...) 不解构 error，后端 401/500 也被当成保存成功。
+            if (error) {
+                showAlert(t('settings.update_failed$message', { message: errorMessage(error) }))
+                setValue(config?.get<string>(configKey) ?? "");
+                setLoading(false);
+                return;
             }
+            applyConfigValue(type, key, value);
             setLoading(false);
-        }).catch((err) => {
-            showAlert(t('settings.update_failed$message', { message: err.message }))
-            setValue(config?.get<string>(configKey) || "");
+        }).catch((err: any) => {
+            showAlert(t('settings.update_failed$message', { message: errorMessage(err) }))
+            setValue(config?.get<string>(configKey) ?? "");
             setLoading(false);
         })
     }
@@ -319,7 +320,8 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
                 <div className="flex flex-row items-center justify-center space-x-4">
                     {loading && <ReactLoading width="1em" height="1em" type="spin" color="#FC466B" />}
                     <Button title={t('update.title')} onClick={() => {
-                        setIsOpen(true);
+                        if (loading) return;
+                        openEditor();
                     }} />
                 </div>
             </div>

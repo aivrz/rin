@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, ewsLogs } from "../db/schema";
 import { setup } from "../setup";
-import { ServerConfig } from "../utils/cache";
+import { ServerConfig } from "../utils/config-store";
 
 // 关注公众号登录（erphp-weixin-scan 整合）+ 微信消息回调。
 // 流程：用户关注并回复"登录" → Worker 消息回调生成 6 位验证码并回复发给用户 →
