@@ -12,6 +12,9 @@ export function TopMusicPlayer() {
 
     const cur = m.list[m.current];
     const ready = m.status === "ready" && m.list.length > 0;
+    const songText = cur ? `${cur.name} - ${cur.artist || "未知歌手"}` : "未播放";
+    // 极简：单行只显示当前这句歌词，歌名放悬停提示；无歌词时退回歌名
+    const lyricText = m.lyricIndex >= 0 ? (m.lyricLines[m.lyricIndex]?.text || "") : "";
 
     if (ready) {
         return (
@@ -28,11 +31,11 @@ export function TopMusicPlayer() {
                 <div className="pyq-mini-meta">
                     <span className={"pyq-mini-title" + (m.playing ? " is-playing" : "")}>
                         <i className="ri-music-2-line pyq-mini-nocover" />
-                        {/* 播放失败时用真实原因替代歌名：否则表现为「有歌名却没声音」，无从判断是加载失败还是被浏览器拦截 */}
-                        <span className="pyq-mini-text" title={m.reason || undefined}>
+                        {/* 播放失败时用真实原因替代歌词：否则表现为「有歌名却没声音」，无从判断是加载失败还是被浏览器拦截 */}
+                        <span className="pyq-mini-text" title={m.reason ? m.reason : songText}>
                             {m.reason
                                 ? `⚠ ${m.reason}`
-                                : cur ? `${cur.name} - ${cur.artist || "未知歌手"}` : "未播放"}
+                                : lyricText || songText}
                         </span>
                     </span>
                 </div>

@@ -27,6 +27,10 @@ function describeError(e: any): string {
 const playlistCache = new Map<string, { ts: number; data: any }>();
 const PLAYLIST_TTL = 1000 * 60 * 30;
 
+// 歌词是静态数据，按 isolate 长期缓存即可，避免每次切歌都打上游。
+const lyricCache = new Map<string, string>();
+const LYRIC_CACHE_MAX = 200;
+
 type NeteaseRef = { type: 'playlist' | 'song' | 'album'; id: string };
 
 // 各类链接在顶栏展示的兜底名称
@@ -50,8 +54,15 @@ function parseNeteaseLink(link: string): NeteaseRef | null {
     return { type, id: idMatch[1] };
 }
 
-/** 依次尝试各实例，返回首个成功结果；全部失败时抛出聚合了每个实例原因的错误 */
-async function metingGet(params: Record<string, string>, timeoutMs = 8000): Promise<any> {
+/**
+ * 依次尝试各实例并解析响应；实例不可用**或解析失败**都会自动降级到下一个。
+ * parse 放在循环内部，这样实例返回了非法 JSON 时也能继续回退。
+ */
+async function metingFetch<T>(
+    params: Record<string, string>,
+    parse: (text: string) => T,
+    timeoutMs = 8000,
+): Promise<T> {
     const qs = new URLSearchParams(params).toString();
     const failures: string[] = [];
     for (const base of metingApis()) {
@@ -63,7 +74,7 @@ async function metingGet(params: Record<string, string>, timeoutMs = 8000): Prom
                 headers: { 'User-Agent': 'Mozilla/5.0' },
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return await res.json();
+            return parse(await res.text());
         } catch (e: any) {
             failures.push(`${base} -> ${describeError(e)}`);
             console.warn('meting instance failed, trying next', base, describeError(e));
@@ -72,6 +83,10 @@ async function metingGet(params: Record<string, string>, timeoutMs = 8000): Prom
         }
     }
     throw new Error(`all meting instances failed: ${failures.join('; ')}`);
+}
+
+function metingGet(params: Record<string, string>, timeoutMs = 8000): Promise<any> {
+    return metingFetch(params, (t) => JSON.parse(t) as any, timeoutMs);
 }
 
 function firstUrl(data: any): string | null {
@@ -150,6 +165,27 @@ export function MusicService() {
                     // 必须带上真实原因：最常见的故障是公益实例域名失效（ENOTFOUND），
                     // 只回一句 resolve failed 会让人误以为是站点代码的问题
                     return { error: 'resolve failed', detail };
+                }
+            })
+            .get('/netease/lyric/:id', async ({ set, params }) => {
+                const id = String(params.id || '');
+                if (!/^\d+$/.test(id)) {
+                    set.status = 400;
+                    return { error: 'invalid song id' };
+                }
+                const cached = lyricCache.get(id);
+                if (cached !== undefined) return { lrc: cached };
+                try {
+                    // type=lrc 返回纯文本 LRC 而非 JSON；部分实例会 302 到 .lrc 文件，
+                    // fetch 默认跟随重定向，这里直接取最终文本
+                    const lrc = await metingFetch({ server: 'netease', type: 'lrc', id }, (t) => t);
+                    if (lyricCache.size >= LYRIC_CACHE_MAX) lyricCache.clear();
+                    lyricCache.set(id, lrc);
+                    return { lrc };
+                } catch (e: any) {
+                    // 歌词缺失不算错误：返回空串让前端退回显示歌名，不影响播放
+                    console.warn('netease lyric unavailable', id, describeError(e));
+                    return { lrc: '' };
                 }
             })
             .get('/netease/url/:id', async ({ set, params, request }) => {

@@ -15,13 +15,50 @@ export interface MusicState {
     playing: boolean;
     /** 失败/降级时的真实原因（如上游实例域名失效 ENOTFOUND），用于界面提示 */
     reason?: string;
+    /** 当前歌曲解析出的 LRC 行（按时间升序） */
+    lyricLines: LyricLine[];
+    /** 当前应显示的行号，-1 表示尚未到第一句 */
+    lyricIndex: number;
+}
+
+export type LyricLine = { time: number; text: string };
+
+const TIME_TAG = /\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+
+/**
+ * 解析标准 LRC。几个必须处理的细节：
+ * - 一行可能有多个时间标签（重复句 `[00:12.00][01:30.00]歌词`），要展开成多条；
+ * - 小数位数不固定（`.3` / `.37` / `.370` 都存在），统一按小数点后的数值处理；
+ * - `[ti:]` `[ar:]` `[offset:]` 等元信息不含时间，不会匹配时间标签，天然被跳过。
+ */
+export function parseLrc(raw: string): LyricLine[] {
+    if (!raw) return [];
+    const out: LyricLine[] = [];
+    for (const line of raw.split(/\r?\n/)) {
+        TIME_TAG.lastIndex = 0;
+        const stamps = [...line.matchAll(TIME_TAG)];
+        if (stamps.length === 0) continue;
+        const text = line.replace(TIME_TAG, "").trim();
+        for (const s of stamps) {
+            const frac = Number(`0.${(s[3] || "0").padEnd(2, "0")}`);
+            out.push({ time: Number(s[1]) * 60 + Number(s[2]) + frac, text });
+        }
+    }
+    return out.sort((a, b) => a.time - b.time);
 }
 
 // 模块级单例音频元素：不随路由切换（顶栏 remount）而重置，保证跨页面连续播放
 const audio: HTMLAudioElement | null =
     typeof Audio !== "undefined" ? new Audio() : null;
 
-let state: MusicState = { status: "idle", list: [], current: 0, playing: false };
+let state: MusicState = {
+    status: "idle",
+    list: [],
+    current: 0,
+    playing: false,
+    lyricLines: [],
+    lyricIndex: -1,
+};
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -50,6 +87,33 @@ if (audio) {
                     : "音频加载失败";
         setState({ playing: false, reason: why });
     });
+    // timeupdate 约每秒触发 4 次；只在行号真正变化时才 setState，避免高频重渲染
+    audio.addEventListener("timeupdate", () => {
+        const lines = state.lyricLines;
+        if (lines.length === 0) return;
+        const t = audio.currentTime;
+        // 二分找最后一个 time <= t 的行
+        let lo = 0, hi = lines.length - 1, idx = -1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (lines[mid].time <= t) { idx = mid; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        if (idx !== state.lyricIndex) setState({ lyricIndex: idx });
+    });
+}
+
+/** 拉取并解析当前歌曲歌词；失败静默退回「显示歌名」 */
+async function loadLyric(id: string) {
+    if (!id) return;
+    try {
+        const r = await fetch(`${endpoint}/music/netease/lyric/${id}`);
+        if (!r.ok) return;
+        const json = await r.json() as { lrc?: string };
+        const lines = parseLrc(json.lrc || "");
+        // 切歌竞态：返回时若已不是当前歌曲，丢弃这份歌词
+        if (state.list[state.current]?.id !== id) return;
+        setState({ lyricLines: lines, lyricIndex: -1 });
+    } catch { /* 歌词不可用不影响播放 */ }
 }
 
 // 歌单链接统一取自全局配置 store（不再单独请求 /config/client），
@@ -126,7 +190,7 @@ export async function loadMusic() {
  */
 export async function refreshMusic() {
     audio?.pause();
-    state = { status: "idle", list: [], current: 0, playing: false };
+    state = { status: "idle", list: [], current: 0, playing: false, lyricLines: [], lyricIndex: -1 };
     emit();
     await loadMusic();
 }
@@ -143,9 +207,10 @@ export function subscribeMusic() {
 export function playSong(i: number) {
     if (!audio || !state.list[i]) return;
     const song = state.list[i];
-    setState({ current: i, reason: undefined });
+    setState({ current: i, reason: undefined, lyricLines: [], lyricIndex: -1 });
+    void loadLyric(song.id);
     if (!song.id) {
-        // 上游没能解析出歌曲 id（多见于无版权歌曲），直接给出原因而不是让请求打到一个空地址
+        //上游没能解析出歌曲 id（多见于无版权歌曲），直接给出原因而不是让请求打到一个空地址
         setState({ reason: "该歌曲缺少 id，无法播放" });
         return;
     }
