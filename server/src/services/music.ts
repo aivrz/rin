@@ -8,13 +8,27 @@ const METING_API = (process.env.METING_API || 'https://api.i-meting.com/api').re
 const playlistCache = new Map<string, { ts: number; data: any }>();
 const PLAYLIST_TTL = 1000 * 60 * 30;
 
-function extractPlaylistId(link: string): string | null {
+type NeteaseRef = { type: 'playlist' | 'song' | 'album'; id: string };
+
+// 各类链接在顶栏展示的兜底名称
+const REF_LABEL: Record<NeteaseRef['type'], string> = {
+    playlist: '网易云歌单',
+    album: '网易云专辑',
+    song: '网易云单曲',
+};
+
+// 从网易云链接解析出类型与 id，兼容以下形态（也兼容分享文案中夹带链接的情况）：
+//   歌单 music.163.com/playlist?id=1 | /#/playlist?id=1 | /playlist/1
+//   单曲 music.163.com/#/song?id=1   | /song/1   | /m/song?id=1
+//   专辑 music.163.com/#/album?id=1  | /album/1  | /m/album?id=1
+// 无法识别类型关键字时默认按歌单处理，保持对既往可用链接的向后兼容。
+function parseNeteaseLink(link: string): NeteaseRef | null {
     if (!link) return null;
-    const m =
-        link.match(/playlist\?id=(\d+)/) ||
-        link.match(/playlist\/(\d+)/) ||
-        link.match(/[?&]id=(\d+)/);
-    return m ? m[1] : null;
+    const typeMatch = link.match(/(?:#\/|\/)(playlist|song|album)(?:[/?#]|$)/i);
+    const type = (typeMatch ? typeMatch[1].toLowerCase() : 'playlist') as NeteaseRef['type'];
+    const idMatch = link.match(/[?&]id=(\d+)/) || link.match(/\/(\d+)(?:[/?#]|$)/);
+    if (!idMatch) return null;
+    return { type, id: idMatch[1] };
 }
 
 async function metingGet(params: Record<string, string>, timeoutMs = 8000): Promise<any> {
@@ -59,17 +73,19 @@ export function MusicService() {
         group
             .get('/netease/playlist', async ({ set, query }) => {
                 const link = (query.url as string) || '';
-                const pid = extractPlaylistId(link);
-                if (!pid) {
+                const ref = parseNeteaseLink(link);
+                if (!ref) {
                     set.status = 400;
-                    return { error: 'invalid playlist url' };
+                    return { error: 'invalid netease link' };
                 }
-                const cached = playlistCache.get(pid);
+                // 不同类型可能撞同一个 id，故缓存键带上类型
+                const cacheKey = `${ref.type}:${ref.id}`;
+                const cached = playlistCache.get(cacheKey);
                 if (cached && Date.now() - cached.ts < PLAYLIST_TTL) {
                     return cached.data;
                 }
                 try {
-                    const data = await metingGet({ server: 'netease', type: 'playlist', id: pid });
+                    const data = await metingGet({ server: 'netease', type: ref.type, id: ref.id });
                     const list = songList(data).map((s: any) => ({
                         id: String(s.id),
                         name: s.name || '未知',
@@ -78,11 +94,12 @@ export function MusicService() {
                             : s.artist || '未知歌手',
                         cover: s.cover || '',
                     }));
-                    const out = { name: '网易云歌单', list };
-                    playlistCache.set(pid, { ts: Date.now(), data: out });
+                    // 单曲天然是单元素列表，专辑按其歌曲列表解析，结构对前端保持一致
+                    const out = { name: REF_LABEL[ref.type], list };
+                    playlistCache.set(cacheKey, { ts: Date.now(), data: out });
                     return out;
                 } catch (e) {
-                    console.error('netease playlist resolve failed', e);
+                    console.error('netease resolve failed', ref, e);
                     set.status = 502;
                     return { error: 'resolve failed' };
                 }

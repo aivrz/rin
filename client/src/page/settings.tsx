@@ -99,7 +99,7 @@ export function Settings() {
                             <ItemSwitch title={t('settings.comment.enable.title')} description={t('settings.comment.enable.desc')} type="client" configKey="comment.enabled" />
                             <ItemSwitch title={t('settings.counter.enable.title')} description={t('settings.counter.enable.desc')} type="client" configKey="counter.enabled" />
                             <ItemTitle title="背景音乐" />
-                            <ItemInput title="网易云歌单" description={`粘贴网易云音乐歌单链接即可，例如 https://music.163.com/playlist?id=123456。系统将解析为可播放列表（当前仅支持网易云音乐，其它平台歌单暂不支持）。`} type="client" configKey="music" configKeyTitle="Music Playlist URL" />
+                            <ItemInput title="网易云音乐" description={`粘贴网易云音乐的歌单 / 单曲 / 专辑链接均可，例如歌单 https://music.163.com/playlist?id=123456、单曲 https://music.163.com/#/song?id=1303026047、专辑 https://music.163.com/#/album?id=123456。单曲会作为单个曲目播放，专辑按其歌曲列表解析。目前仅支持网易云音乐，其它平台暂不支持。`} type="client" configKey="music" configKeyTitle="Music Playlist URL" />
                             <ItemTitle title="第三方登录" />
                             <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
                             <ItemInput title="QQ AppKey" description="QQ 互联应用 AppKey（即 AppSecret）" type="server" configKey="qq_appkey" configKeyTitle="QQ AppKey" />

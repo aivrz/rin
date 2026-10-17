@@ -17,7 +17,7 @@ export function TopMusicPlayer() {
                 <button className="pyq-mini-btn" aria-label="上一首" title="上一首" onClick={prevSong}>
                     <i className="ri-skip-back-line" />
                 </button>
-                <button className="pyq-mini-btn pyq-mini-play" aria-label="播放/暂停" title="播放/暂停" onClick={togglePlay}>
+                <button className="pyq-mini-btn pyq-mini-play pyq-mini-lead" aria-label="播放/暂停" title="播放/暂停" onClick={togglePlay}>
                     <i className={m.playing ? "ri-pause-fill" : "ri-play-fill"} />
                 </button>
                 <button className="pyq-mini-btn" aria-label="下一首" title="下一首" onClick={nextSong}>
@@ -42,7 +42,7 @@ export function TopMusicPlayer() {
 
     return (
         <div className="pyq-mini-player">
-            <button className="pyq-mini-btn pyq-mini-play" aria-label="背景音乐" title="背景音乐" disabled>
+            <button className="pyq-mini-btn pyq-mini-lead" aria-label="背景音乐" title="背景音乐" disabled>
                 <i className="ri-music-2-line" />
             </button>
             <div className="pyq-mini-meta">

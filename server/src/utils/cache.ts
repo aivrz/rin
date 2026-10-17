@@ -15,6 +15,7 @@ export class CacheImpl {
     db: DB;
     env: Env;
     cacheUrl: string;
+    cacheFolder: string;
     type: string;
     loaded: boolean = false;
     s3 = createS3Client();
@@ -24,8 +25,12 @@ export class CacheImpl {
         this.db = getDB();
         this.env = getEnv();
         this.cache = new Map<string, any>();
+        // S3_CACHE_FOLDER 在 docs/ENV.md 中标注为可选（默认 cache/），因此必须在此归一：
+        // 读（cacheUrl）与写（save）共用同一目录，否则空串时会写入 S3 根目录、
+        // 未定义时 path.join 抛错，导致「保存返回成功但刷新后配置丢失」。
+        this.cacheFolder = this.env.S3_CACHE_FOLDER || 'cache';
         const slash = this.env.S3_ACCESS_HOST.endsWith('/') ? '' : '/';
-        this.cacheUrl = this.env.S3_ACCESS_HOST + slash + path.join(this.env.S3_CACHE_FOLDER || 'cache', `${type}.json`);
+        this.cacheUrl = this.env.S3_ACCESS_HOST + slash + path.join(this.cacheFolder, `${type}.json`);
     }
 
     async load() {
@@ -106,15 +111,15 @@ export class CacheImpl {
     }
 
     async save() {
-        const cacheKey = path.join(this.env.S3_CACHE_FOLDER, `${this.type}.json`);
+        const cacheKey = path.join(this.cacheFolder, `${this.type}.json`);
         await this.s3.send(new PutObjectCommand({
             Bucket: this.env.S3_BUCKET,
             Key: cacheKey,
             Body: JSON.stringify(Object.fromEntries(this.cache))
         })).then(() => {
-            console.log('Cache saved');
+            console.log('Cache saved', cacheKey);
         }).catch((e: any) => {
-            console.error('Cache save failed')
+            console.error('Cache save failed', cacheKey)
             console.error(e.message);
         });
     }

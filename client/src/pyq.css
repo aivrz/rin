@@ -109,8 +109,11 @@ body.dark-theme,
 }
 
 /* ============ 顶部封面 + 资料 ============ */
+/* 不生成盒子，使子元素的包含块上移到贯穿整页的 .pyq-main（position:relative，无 overflow）。
+   否则顶栏 sticky 的活动范围被本容器（封面 200px + 资料区，约 226px）锁死，
+   长列表页滚过封面区后本容器移出视口，顶栏被一起带走。 */
 .pyq-main-head {
-    position: relative;
+    display: contents;
 }
 
 .pyq-main-head-img {
@@ -189,7 +192,8 @@ body.dark-theme,
 }
 
 .pyq-main-head-top-left-s,
-.pyq-main-head-top-right-s {
+.pyq-main-head-top-right-s,
+.pyq-mini-btn {
     width: var(--topbar-btn-size);
     height: var(--topbar-btn-size);
     display: flex;
@@ -207,7 +211,8 @@ body.dark-theme,
 }
 
 .pyq-main-head-top-left-s i,
-.pyq-main-head-top-right-s i {
+.pyq-main-head-top-right-s i,
+.pyq-mini-btn i {
     font-size: var(--topbar-btn-icon);
     color: var(--topbar-btn-icon-color);
 }
@@ -220,15 +225,19 @@ html.pyq-topbar-scrolled .pyq-main-head-top {
 
 .pyq-main-head-top-left-s:hover,
 .pyq-main-head-top-right-s:hover,
+.pyq-mini-btn:hover,
 .pyq-topbar-scrolled .pyq-main-head-top-left-s:hover,
 .pyq-topbar-scrolled .pyq-main-head-top-right-s:hover,
+.pyq-topbar-scrolled .pyq-mini-btn:hover,
 html.pyq-topbar-scrolled .pyq-main-head-top-left-s:hover,
-html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
+html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover,
+html.pyq-topbar-scrolled .pyq-mini-btn:hover {
     background: #fff;
 }
 
 [data-color-mode="dark"] .pyq-main-head-top-left-s:hover,
-[data-color-mode="dark"] .pyq-main-head-top-right-s:hover {
+[data-color-mode="dark"] .pyq-main-head-top-right-s:hover,
+[data-color-mode="dark"] .pyq-mini-btn:hover {
     background: #2c2c2c;
 }
 
@@ -297,37 +306,28 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     max-width: 100%;
 }
 
+/* 尺寸/圆角/描边/阴影/毛玻璃/hover 全部继承上方顶栏按钮共享规则，这里只补 flex 下不收缩 */
 .pyq-mini-btn {
     flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    color: var(--topbar-btn-icon-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 17px;
-    cursor: pointer;
-    transition: background .15s ease, color .15s ease;
 }
 
-.pyq-mini-btn:hover {
-    background: #fff;
-}
-
+/* 播放/暂停按钮保留主题色强调；去掉 !important 以免压过禁用态透明度 */
 .pyq-mini-play {
-    color: #fff !important;
-    background: var(--theme) !important;
+    color: #fff;
+    background: var(--theme);
+}
+
+.pyq-mini-play i {
+    color: #fff;
 }
 
 .pyq-mini-play:hover {
-    background: var(--theme) !important;
+    background: var(--theme);
     opacity: .9;
 }
 
-.pyq-mini-play:disabled {
+/* 禁用态（未配置/加载中/暂不支持）呈普通顶栏按钮外观，仅降低透明度并禁用指针 */
+.pyq-mini-btn:disabled {
     opacity: .5;
     cursor: default;
 }
@@ -371,13 +371,10 @@ html.pyq-topbar-scrolled .pyq-main-head-top-right-s:hover {
     color: var(--texths);
 }
 
-[data-color-mode="dark"] .pyq-mini-btn:hover {
-    background: #2c2c2c;
-}
-
 /* 移动端：收紧顶栏，音乐播放器仅保留播放/暂停与截断歌名 */
 @media (max-width: 640px) {
-    .pyq-mini-btn:not(.pyq-mini-play) {
+    /* 移动端只保留主按钮（播放/暂停，或未配置时的占位图标） */
+    .pyq-mini-btn:not(.pyq-mini-lead) {
         display: none;
     }
     .pyq-mini-player {
