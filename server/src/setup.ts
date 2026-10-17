@@ -2,7 +2,7 @@ import Elysia, { t } from "elysia";
 import { oauth2 } from "elysia-oauth2";
 import type { DB } from "./_worker";
 import type { Env } from "./db/db";
-import { getEnv } from "./utils/di";
+import { getEnv, getDB } from "./utils/di";
 import jwt from "./utils/jwt";
 
 
@@ -79,4 +79,12 @@ export function setup() {
                 anonUid,
             }
         })
+        // 把 env/db 从 typedi Container 显式注入 Elysia 上下文并带正确类型：
+        // oauth.ts/wechat.ts 的 handler 直接解构 ({ env, db })，但全仓库从未以 .state() 注入，
+        // 仅靠 aot:false 宽松推断放行；此处补上类型与真实实例（同时修复运行时 c.env/c.db 为 undefined 的隐患）。
+        // Env 不含 EWS_*/QQ_*/WECHAT_* 字段且 OAuth 用动态字符串索引，故交集成 Record<string, any>。
+        .derive({ as: 'global' }, () => ({
+            env: getEnv() as Env & Record<string, any>,
+            db: getDB(),
+        }))
 }
