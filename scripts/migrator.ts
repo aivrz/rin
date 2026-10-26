@@ -48,7 +48,7 @@ const wechatAppSecret = env("WECHAT_APPSECRET")
 const ewsAppId = env("EWS_APPID")
 const ewsAppSecret = env("EWS_APPSECRET")
 const ewsToken = env("EWS_TOKEN")
-const ewsQrcodeUrl = env("EWS_QRCODE_URL")
+const ewsQrcodeUrl = env("EWS_QRCODE_URL", "")
 const cdnHost = env("CDN_HOST", "")
 
 Bun.write('wrangler.toml', stripIndent(`

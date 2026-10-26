@@ -1,10 +1,10 @@
 import Elysia, { t } from "elysia";
 import { eq } from "drizzle-orm";
-import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, ewsLogs } from "../db/schema";
 import { setup } from "../setup";
 import { ServerConfig } from "../utils/config-store";
+import { randomHex, sha1Hex } from "../utils/crypto";
 
 // 关注公众号登录（erphp-weixin-scan 整合）+ 微信消息回调。
 // 流程：用户关注并回复"登录" → Worker 消息回调生成 6 位验证码并回复发给用户 →
@@ -20,11 +20,11 @@ function nowStr(): string {
     return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
-// 微信消息签名校验：sha1(排序后 [token, timestamp, nonce]) === signature
-function verifyWechatSignature(token: string, signature: string, timestamp: string, nonce: string): boolean {
-    const arr = [token, timestamp, nonce].sort();
-    const sha = crypto.createHash('sha1').update(arr.join('')).digest('hex');
-    return sha === signature;
+// 微信消息签名校验：sha1(排序后 [token, timestamp, nonce]) === signature。
+// sha1Hex 用 Web Crypto：node:crypto 的 createHash 在本项目的旧版 node_compat 下不可用（见 utils/crypto.ts）
+async function verifyWechatSignature(token: string, signature: string, timestamp: string, nonce: string): Promise<boolean> {
+    const sha = await sha1Hex([token, timestamp, nonce].sort().join(''));
+    return sha === signature.toLowerCase();
 }
 
 // 解析微信推送的 XML（兼容 CDATA）
@@ -56,7 +56,7 @@ function buildPassiveText(toUser: string, fromUser: string, content: string): st
 async function upsertWeixinUser(db: DB, jwt: any, set: any, openid: string, nickname: string, avatar: string) {
     let user = await db.query.users.findFirst({ where: eq(users.weixinid, openid) });
     if (!user) {
-        const loginName = 'wx_' + crypto.randomBytes(8).toString('hex');
+        const loginName = 'wx_' + randomHex(8);
         const result = await db.insert(users).values({
             username: loginName,
             openid: loginName,
@@ -112,15 +112,17 @@ export function WechatService() {
                 })
                 // 前端获取关注二维码地址（公开，仅返回图片 URL）
                 .get('/qrcode', async ({ env }) => {
-                    const qrcodeUrl = (await ServerConfig().get('ews_qrcode_url')) || env.EWS_QRCODE_URL || '';
-                    return { qrcodeUrl };
+                    const raw = (await ServerConfig().get('ews_qrcode_url')) || env.EWS_QRCODE_URL || '';
+                    // migrator 在环境变量缺失时曾把字面量 "undefined" 写进 wrangler.toml [vars]，
+                    // 前端会拿到 src="undefined" 的裂图，这里过滤掉
+                    return { qrcodeUrl: raw === 'undefined' ? '' : raw };
                 })
         )
         // 微信消息回调（GET 校验签名回显 echostr；POST 处理用户回复）
         .get('/wechat/callback', async ({ env, query }) => {
             const { signature, timestamp, nonce, echostr } = query as any;
             const token = (await ServerConfig().get('ews_token')) || env.EWS_TOKEN || '';
-            if (!verifyWechatSignature(token, signature || '', timestamp || '', nonce || '')) {
+            if (!(await verifyWechatSignature(token, signature || '', timestamp || '', nonce || ''))) {
                 return 'invalid signature';
             }
             return echostr || 'ok';

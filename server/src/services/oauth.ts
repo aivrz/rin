@@ -1,10 +1,10 @@
 import Elysia, { t } from "elysia";
 import { and, eq } from "drizzle-orm";
-import crypto from "node:crypto";
 import type { DB } from "../_worker";
 import { users, oauthIdentities } from "../db/schema";
 import { setup } from "../setup";
 import { ServerConfig } from "../utils/config-store";
+import { randomHex } from "../utils/crypto";
 
 // erphplogin 整合：QQ / 微博 / 微信网页授权 三种 OAuth 登录。
 // 微信网页授权（snsapi_userinfo）需要认证「服务号」资质，订阅号无法使用，未具备时该入口置灰。
@@ -102,7 +102,7 @@ async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, p
         const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
         if (u) await db.update(users).set({ avatar: profile.avatar || u.avatar, username: profile.username || u.username }).where(eq(users.id, u.id));
     } else {
-        const loginName = `${provider}_` + crypto.randomBytes(6).toString('hex');
+        const loginName = `${provider}_` + randomHex(6);
         const insert = await db.insert(users).values({ username: loginName, openid: loginName, avatar: profile.avatar, permission: 0 }).returning({ id: users.id });
         userId = insert[0].id;
         await db.insert(oauthIdentities).values({ userId, provider, openid: profile.openid, avatar: profile.avatar });
@@ -124,7 +124,7 @@ export function OAuthService() {
             if (!clientId || !clientSecret) return 'Provider not configured';
             const origin = new URL(request.url).origin;
             const redirectUri = `${origin}/user/${provider}/callback`;
-            const state = crypto.randomBytes(8).toString('hex');
+            const state = randomHex(8);
             const refererOrigin = headers.referer ? new URL(headers.referer).origin : origin;
             // 存原始 origin（与 user.ts 的 GitHub 流程保持一致），不要在 cookie 里编码，
             // 否则回调读取时会被二次解码导致回跳 URL 错乱。

@@ -104,10 +104,10 @@ export function Settings() {
                     <ItemInput title="微博 AppSecret" description="微博开放平台应用 AppSecret" type="server" configKey="weibo_appsecret" configKeyTitle="微博 AppSecret" />
                     <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 配置网页授权域名；回调 ${origin}/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
                     <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
-                    <ItemInput title="公众号扫码 AppID" description="erphp-weixin-scan 插件对接：公众号 AppID" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
-                    <ItemInput title="公众号扫码 AppSecret" description="erphp-weixin-scan 插件对接：公众号 AppSecret" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
-                    <ItemInput title="公众号扫码 Token" description="与 erphp-weixin-scan 插件一致的 Token（消息回调签名校验用）" type="server" configKey="ews_token" configKeyTitle="EWS Token" />
-                    <ItemInput title="公众号扫码二维码地址" description="erphp-weixin-scan 插件生成的关注二维码图片地址，填到 ews_qrcode_url" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
+                    <ItemInput title="公众号扫码 AppID" description="当前版本未使用（消息回调走明文模式，签名校验仅需 Token），可留空" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
+                    <ItemInput title="公众号扫码 AppSecret" description="当前版本未使用，可留空" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
+                    <ItemInput title="公众号扫码 Token" description={`微信公众平台「开发 → 基本配置 → 服务器配置」需填两项：① 本处 Token（需与之一致）；②「服务器地址(URL)」填 ${origin}/wechat/callback（即 WordPress 里 erphp-weixin-scan 的 valid.php 对应角色，但 rin 用自己的回调，勿填 WP 路径）。务必选「明文模式」，不可选安全/兼容模式，否则消息体无法解析。`} type="server" configKey="ews_token" configKeyTitle="EWS Token" />
+                    <ItemInput title="公众号扫码二维码地址" description="关注公众号二维码图片直链，例如 https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=... 。要求：HTTPS、正方形 ≥300px、用永久二维码；勿填 api.weixin.qq.com 的 JSON 接口或开启防盗链的图床。" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
                     <ItemTitle title="CDN 加速（七牛镜像回源）" />
                     <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
                     <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
