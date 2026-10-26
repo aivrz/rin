@@ -59,7 +59,7 @@ async function upsertWeixinUser(db: DB, jwt: any, set: any, openid: string, nick
     if (!user) {
         const loginName = 'wx_' + randomHex(8);
         const result = await db.insert(users).values({
-            username: loginName,
+            username: '微信用户',
             openid: loginName,
             avatar: avatar || '',
             weixinid: openid,

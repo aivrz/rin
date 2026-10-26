@@ -30,6 +30,7 @@ export function CommentItem({
     const [replyOpen, setReplyOpen] = useState(false);
     const [replyContent, setReplyContent] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [avatarFailed, setAvatarFailed] = useState(false);
 
     function deleteComment() {
         showConfirm(
@@ -77,11 +78,44 @@ export function CommentItem({
     return (
         <div>
             <div className="pyq-comment-item">
-                <img src={comment.user.avatar || ""} alt="" referrerPolicy="no-referrer" />
+                <div className="pyq-comment-avatar">
+                    {comment.user.avatar && !avatarFailed ? (
+                        <img
+                            src={comment.user.avatar}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            onError={() => setAvatarFailed(true)}
+                        />
+                    ) : (
+                        <div
+                            className="pyq-comment-avatar-default"
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
+                            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                                <ellipse cx="9" cy="15" rx="7" ry="6" fill="#07C160" />
+                                <circle cx="6.5" cy="14" r="1" fill="#fff" />
+                                <circle cx="11.5" cy="14" r="1" fill="#fff" />
+                                <ellipse cx="16.5" cy="8" rx="5" ry="4.2" fill="#07C160" />
+                                <circle cx="15" cy="7.5" r="0.8" fill="#fff" />
+                                <circle cx="18" cy="7.5" r="0.8" fill="#fff" />
+                            </svg>
+                        </div>
+                    )}
+                </div>
                 <div className="pyq-comment-body">
-                    <div>
-                        <span className="pyq-comment-name">{comment.user.username}</span>
-                        <span className="pyq-comment-time" title={new Date(comment.createdAt).toLocaleString()}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                        <span
+                            className="pyq-comment-name"
+                            title={comment.user.username}
+                            style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        >
+                            {comment.user.username}
+                        </span>
+                        <span
+                            className="pyq-comment-time"
+                            title={new Date(comment.createdAt).toLocaleString()}
+                            style={{ flex: "0 0 auto" }}
+                        >
                             {timeago(comment.createdAt)}
                         </span>
                     </div>
