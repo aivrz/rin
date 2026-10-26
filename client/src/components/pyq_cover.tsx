@@ -7,10 +7,13 @@ import { TopMusicPlayer } from "./top_music";
 
 // 仿 pyq 顶部封面 + 站点资料（头像 / 昵称 / 个签）+ 叠加在封面上的吸顶玻璃导航。
 export function PyqCoverHeader() {
-    const avatar = process.env.AVATAR || "";
+    const avatarEnv = process.env.AVATAR || "";
     const name = process.env.NAME || "Rin";
     const desc = process.env.DESCRIPTION || "";
     const config = useContext(ClientConfigContext);
+    // logo / banner 为站点可配置图片：未配置时回退到默认头像（环境变量 AVATAR）
+    const logo = config.get<string>('logo') || avatarEnv;
+    const banner = config.get<string>('banner') || avatarEnv;
     const loginEnabled = config.get<boolean>('login.enabled');
     const { LoginModal, setIsOpened } = useLoginModal();
     const [searchOpen, setSearchOpen] = useState(false);
@@ -75,8 +78,8 @@ export function PyqCoverHeader() {
             <div
                 className="pyq-main-head-img"
                 style={{
-                    backgroundImage: avatar
-                        ? `linear-gradient(135deg, rgba(9,195,98,0.25), rgba(43,125,224,0.25)), url(${avatar})`
+                    backgroundImage: banner
+                        ? `linear-gradient(135deg, rgba(9,195,98,0.25), rgba(43,125,224,0.25)), url(${banner})`
                         : "linear-gradient(135deg, #09c362, #2b7de0)",
                 }}
             />
@@ -87,8 +90,8 @@ export function PyqCoverHeader() {
                         {desc && <p className="pyq-main-head-headimg-qm">{desc}</p>}
                     </div>
                     <Link href="/timeline" title="时间轴">
-                        {avatar
-                            ? <img src={avatar} alt="头像" referrerPolicy="no-referrer" decoding="async" />
+                        {logo
+                            ? <img src={logo} alt="头像" referrerPolicy="no-referrer" decoding="async" />
                             : <div style={{ width: 72, height: 72, borderRadius: 8, border: "3px solid var(--cobg)", background: "var(--imgbgy)" }} />}
                     </Link>
                 </div>

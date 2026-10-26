@@ -1,4 +1,5 @@
 import Editor from '@monaco-editor/react';
+import { EditorToolbar } from "../components/EditorToolbar";
 import i18n from 'i18next';
 import _ from 'lodash';
 import { editor } from 'monaco-editor';
@@ -291,6 +292,13 @@ export function WritingPage({ id }: { id?: number }) {
   const [preview, setPreview] = useCache<'edit' | 'preview' | 'comparison'>("preview", 'edit');
   const [uploading, setUploading] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function markSaved() {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSavedAt(new Date()), 600)
+  }
   const { showAlert, AlertUI } = useAlert()
   function publishButton() {
     if (publishing) return;
@@ -529,17 +537,18 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:type" content="article" />
         <meta property="og:url" content={document.URL} />
       </Helmet>
-      <ManageList />
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
-          <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
-            {MetaInput({ className: "visible md:hidden mb-8" })}
-            <div className="flex flex-col mx-4 my-2 md:mx-0 md:my-0 gap-2">
-              <div className="flex flex-row space-x-2">
+          <div className="bg-w rounded-2xl shadow-xl shadow-light overflow-hidden">
+            {MetaInput({ className: "p-4 border-b border-neutral-200 dark:border-neutral-700" })}
+            <EditorToolbar editorRef={editorRef} />
+            <div className="flex flex-col mx-4 my-2 gap-2">
+              <div className="flex flex-row space-x-2 items-center">
                 <button className={`${preview === 'edit' ? "text-theme" : ""}`} onClick={() => setPreview('edit')}> {t("edit")} </button>
                 <button className={`${preview === 'preview' ? "text-theme" : ""}`} onClick={() => setPreview('preview')}> {t("preview")} </button>
                 <button className={`${preview === 'comparison' ? "text-theme" : ""}`} onClick={() => setPreview('comparison')}> {t("comparison")} </button>
                 <div className="flex-grow" />
+                {savedAt && <span className="text-xs text-neutral-400 hidden sm:inline">已保存草稿 · {savedAt.toLocaleTimeString()}</span>}
                 {uploading &&
                   <div className="flex flex-row space-x-2 items-center">
                     <Loading type="spin" color="#FC466B" height={16} width={16} />
@@ -553,9 +562,12 @@ export function WritingPage({ id }: { id?: number }) {
                     <UploadImageButton />
                   </div>
                   <div
-                    className={"relative"}
+                    className={"relative rounded-xl transition-colors " + (dragOver ? "ring-2 ring-[var(--theme)] bg-secondary/40" : "ring-1 ring-transparent")}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
                     onDrop={(e) => {
                       e.preventDefault();
+                      setDragOver(false);
                       const editor = editorRef.current;
                       if (!editor) return;
                       for (let i = 0; i < e.dataTransfer.files.length; i++) {
@@ -582,10 +594,10 @@ export function WritingPage({ id }: { id?: number }) {
                       defaultLanguage="markdown"
                       className=""
                       value={content}
-                      // onPaste={handlePaste}
                       onChange={(data, _) => {
                         cache.set("content", data ?? "");
                         setContent(data ?? "");
+                        markSaved();
                       }}
                       theme={colorMode === "dark" ? "vs-dark" : "light"}
                       options={{
@@ -597,6 +609,10 @@ export function WritingPage({ id }: { id?: number }) {
                         pasteAs: { enabled: false }
                       }}
                     />
+                    {dragOver &&
+                      <div className="absolute inset-0 flex items-center justify-center text-theme bg-white/70 dark:bg-black/40 rounded-xl pointer-events-none">
+                        <span className="flex items-center gap-2"><i className="ri-image-add-line" /> 松开以插入图片</span>
+                      </div>}
                   </div>
                 </div>
                 <div
@@ -621,9 +637,8 @@ export function WritingPage({ id }: { id?: number }) {
             </button>
           </div>
         </div>
-        <div className="hidden md:visible max-w-96 md:flex flex-col">
-          {MetaInput({ className: "bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8" })}
-          <div className="flex flex-row justify-center mt-8">
+        <div className="hidden md:flex flex-col">
+          <div className="flex flex-row justify-center mt-8 md:mt-0">
             <button
               onClick={publishButton}
               className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2"
@@ -638,6 +653,7 @@ export function WritingPage({ id }: { id?: number }) {
           </div>
         </div>
       </div>
+      <ManageList />
       <AlertUI />
     </>
 

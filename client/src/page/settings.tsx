@@ -3,7 +3,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactLoading from "react-loading";
 import Modal from "react-modal";
-import { Button } from "../components/button.tsx";
+import { Button, ButtonWithLoading } from "../components/button.tsx";
 import { useAlert, useConfirm } from "../components/dialog.tsx";
 import { client, oauth_url } from "../main.tsx";
 import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConfigValue, useClientConfig, useServerConfig } from "../state/config.ts";
@@ -106,12 +106,14 @@ export function Settings() {
                     <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
                     <ItemInput title="公众号扫码 AppID" description="当前版本未使用（消息回调走明文模式，签名校验仅需 Token），可留空" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
                     <ItemInput title="公众号扫码 AppSecret" description="当前版本未使用，可留空" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
-                    <ItemInput title="公众号扫码 Token" description={`微信公众平台「开发 → 基本配置 → 服务器配置」需填两项：① 本处 Token（需与之一致）；②「服务器地址(URL)」填 ${origin}/wechat/callback（即 WordPress 里 erphp-weixin-scan 的 valid.php 对应角色，但 rin 用自己的回调，勿填 WP 路径）。务必选「明文模式」，不可选安全/兼容模式，否则消息体无法解析。`} type="server" configKey="ews_token" configKeyTitle="EWS Token" />
-                    <ItemInput title="公众号扫码二维码地址" description="关注公众号二维码图片直链，例如 https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=... 。要求：HTTPS、正方形 ≥300px、用永久二维码；勿填 api.weixin.qq.com 的 JSON 接口或开启防盗链的图床。" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode URL" />
+                    <ItemInput title="公众号扫码 Token" description={`微信公众平台「开发 → 基本配置 → 服务器配置」需填两项：① 本处 Token（需与之一致）；②「服务器地址(URL)」填你 rin 后端 API / Worker 实际部署域名下的 /wechat/callback（例如 https://rinserver.100125.xyz/wechat/callback）。注意：本提示里的 ${origin} 是按你当前浏览地址生成的——若从 www 等别名域名进入后台，会得到错误的 www 域名，请手动改成 Worker 真实域名再填。务必选「明文模式」，不可选安全/兼容模式，否则消息体无法解析。`} type="server" configKey="ews_token" configKeyTitle="EWS Token" />
+                    <ImageConfigInput title="公众号扫码二维码" description="关注公众号二维码：直接「上传图片」（保存到 R2 存储），或粘贴图片直链。要求：正方形 ≥300px 的永久二维码；用户关注后回复「登录」获取 6 位验证码。" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode" />
                     <ItemTitle title="CDN 加速（七牛镜像回源）" />
                     <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
                     <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
                     <ItemInput title={t('settings.favicon.title')} description={t('settings.favicon.desc')} type="client" configKey="favicon" configKeyTitle="Favicon" />
+                    <ImageConfigInput title="站点 Logo" description="站点 logo，显示在封面头像与通用页眉。留空则回退到默认头像（环境变量 AVATAR）。" type="client" configKey="logo" configKeyTitle="Logo" />
+                    <ImageConfigInput title="站点顶部 Banner" description="站点顶部 banner 封面图，显示在各页面封面的背景。留空则回退到默认头像渐变背景。" type="client" configKey="banner" configKeyTitle="Banner" />
                     <ItemInput title={t('settings.footer.title')} description={t('settings.footer.desc')} type="client" configKey="footer" configKeyTitle="Footer HTML" />
                     <ItemButton title={t('settings.cache.clear.title')} description={t('settings.cache.clear.desc')} buttonTitle={t('clear')} onConfirm={async () => {
                         await client.config.cache.delete(undefined, {
@@ -301,6 +303,7 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
                 return;
             }
             applyConfigValue(type, key, value);
+            showAlert(t('update.success'));
             setLoading(false);
         }).catch((err: any) => {
             showAlert(t('settings.update_failed$message', { message: errorMessage(err) }))
@@ -377,6 +380,104 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
             </Modal>
             <AlertUI />
         </div >
+    );
+}
+
+// 图片类配置项：直接上传到 R2（S3 兼容）存储并保存返回的公开 URL；
+// 同时保留「粘贴图片链接」作为 R2 未配置时的降级手段。保存成功/失败均有明确反馈。
+function ImageConfigInput({ title, description, configKeyTitle, configKey, type }: {
+    title: string; description: string; configKeyTitle: string; configKey: string; type: 'client' | 'server';
+}) {
+    // 两个 hook 都无条件调用（同一 store 的两个快照），避免条件调用 hook
+    const clientConfig = useClientConfig();
+    const serverConfig = useServerConfig();
+    const config = type === 'client' ? clientConfig : serverConfig;
+    const value = config?.get<string>(configKey) ?? "";
+    const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [manualUrl, setManualUrl] = useState("");
+    const fileRef = useRef<HTMLInputElement>(null);
+    const { showAlert, AlertUI } = useAlert();
+    const { t } = useTranslation();
+
+    function saveConfig(url: string) {
+        setLoading(true);
+        client.config({ type }).post({ [configKey]: url }, { headers: headersWithAuth() })
+            .then(({ error }: { error: any }) => {
+                if (error) {
+                    showAlert(t('settings.update_failed$message', { message: errorMessage(error) }));
+                    setLoading(false);
+                    return;
+                }
+                applyConfigValue(type, configKey, url);
+                showAlert(t('update.success'));
+                setLoading(false);
+            })
+            .catch((err: any) => {
+                showAlert(t('settings.update_failed$message', { message: errorMessage(err) }));
+                setLoading(false);
+            });
+    }
+
+    function handleFile(e: ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            showAlert(t('upload.failed$size', { size: 5 }));
+            return;
+        }
+        setUploading(true);
+        client.storage.index.post({ key: file.name, file }, { headers: headersWithAuth() })
+            .then(({ data, error }: { data?: any; error?: any }) => {
+                if (error) {
+                    showAlert(t('settings.update_failed$message', { message: errorMessage(error) }));
+                    setUploading(false);
+                    return;
+                }
+                if (data) saveConfig(String(data));
+                setUploading(false);
+            })
+            .catch((err: any) => {
+                showAlert(t('settings.update_failed$message', { message: errorMessage(err) }));
+                setUploading(false);
+            });
+        e.target.value = "";
+    }
+
+    return (
+        <div className="flex flex-col w-full items-start">
+            <div className="flex flex-row justify-between w-full items-center">
+                <div className="flex flex-col">
+                    <p className="text-lg font-bold dark:text-white">{title}</p>
+                    <p className="text-xs text-neutral-500">{description}</p>
+                </div>
+                <div className="flex flex-row items-center justify-center space-x-2">
+                    {loading && <ReactLoading width="1em" height="1em" type="spin" color="#FC466B" />}
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+                    <ButtonWithLoading title="上传图片" loading={uploading} onClick={() => fileRef.current?.click()} />
+                    {value && <Button secondary title="清除" onClick={() => saveConfig("")} />}
+                </div>
+            </div>
+            {value
+                ? <img src={value} alt={configKeyTitle} referrerPolicy="no-referrer"
+                    className="mt-2 max-h-32 rounded-xl border border-neutral-200 object-contain" />
+                : <p className="text-xs text-neutral-400 mt-2">未配置</p>}
+            <div className="flex flex-row items-center gap-2 mt-2 w-full">
+                <input
+                    value={manualUrl}
+                    onChange={(e) => setManualUrl(e.target.value)}
+                    placeholder="或粘贴图片链接（R2 未配置时可用）"
+                    className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm outline-none bg-secondary t-primary"
+                />
+                <Button secondary title="保存链接" onClick={() => {
+                    const u = manualUrl.trim();
+                    if (!u) return;
+                    saveConfig(u);
+                    setManualUrl("");
+                }} />
+            </div>
+            <AlertUI />
+        </div>
     );
 }
 

@@ -16,6 +16,8 @@ import { ClientConfigContext } from "../state/config";
 export function Header({ children }: { children?: React.ReactNode }) {
     const profile = useContext(ProfileContext);
     const { t } = useTranslation()
+    const config = useContext(ClientConfigContext);
+    const logo = config.get<string>('logo') || process.env.AVATAR || "";
 
     return useMemo(() => (
         <>
@@ -25,7 +27,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
                         <div className="w-full flex justify-between items-center">
                             <Link aria-label={t('home')} href="/"
                                 className="hidden opacity-0 md:opacity-100 duration-300 mr-auto md:flex flex-row items-center">
-                                <img src={process.env.AVATAR} alt="Avatar" className="w-12 h-12 rounded-2xl border-2" />
+                                <img src={logo} alt="Avatar" className="w-12 h-12 rounded-2xl border-2" />
                                 <div className="flex flex-col justify-center items-start mx-4">
                                     <p className="text-xl font-bold dark:text-white">
                                         {process.env.NAME}
@@ -41,7 +43,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
                                     className="flex flex-row items-center bg-w t-primary rounded-full px-2 shadow-xl shadow-light">
                                     <Link aria-label={t('home')} href="/"
                                         className="visible opacity-100 md:hidden md:opacity-0 duration-300 mr-auto flex flex-row items-center py-2">
-                                        <img src={process.env.AVATAR} alt="Avatar"
+                                        <img src={logo} alt="Avatar"
                                             className="w-10 h-10 rounded-full border-2" />
                                         <div className="flex flex-col justify-center items-start mx-2">
                                             <p className="text-sm font-bold">
@@ -68,7 +70,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
             </div>
             <div className="h-20"></div>
         </>
-    ), [profile, children])
+    ), [profile, children, logo])
 }
 
 function NavItem({ menu, title, selected, href, when = true, onClick }: {

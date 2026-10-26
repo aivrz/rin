@@ -18,6 +18,8 @@ const CLIENT_KEYS = new Set([
     'comment.enabled',    // 评论开关
     'counter.enabled',    // 访问计数开关
     'friend_apply_enable',// 友链申请开关
+    'logo',               // 站点 logo（header / 封面头像，缺省回退 AVATAR）
+    'banner',             // 站点顶部 banner（封面背景，缺省回退 AVATAR）
 ]);
 
 const SERVER_KEYS = new Set([
