@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from "react";
+import { useServerConfig } from "../state/config";
 
 // 关注公众号扫码登录面板（erphp-weixin-scan 整合前端部分）。
 // 流程：展示关注二维码 → 用户关注并回复“登录”获取 6 位验证码 → 输入验证码 → 轮询 /ews/login。
 export function ScanPanel() {
-    const [qrcode, setQrcode] = useState("");
+    // 优先读取服务端配置 store：后台保存二维码地址后立即生效，无需重开面板 / 刷新
+    const serverConfig = useServerConfig();
+    const storedQr = serverConfig?.get<string>('ews_qrcode_url') || "";
+    const [fetchedQr, setFetchedQr] = useState("");
     const [code, setCode] = useState("");
     const [msg, setMsg] = useState("");
     const [polling, setPolling] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
+        // 兜底：若 store 尚未加载（用户未进过设置页），从公开接口拉取一次
         fetch("/ews/qrcode")
             .then(r => r.json())
-            .then((d: any) => { if (d && d.qrcodeUrl) setQrcode(d.qrcodeUrl); })
+            .then((d: any) => { if (d && d.qrcodeUrl) setFetchedQr(d.qrcodeUrl); })
             .catch(() => { });
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, []);
+
+    // store 有值优先（实时），否则用兜底拉取的结果
+    const qrcode = storedQr || fetchedQr;
 
     const startLogin = () => {
         if (!code || polling) return;

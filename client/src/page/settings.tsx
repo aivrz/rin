@@ -19,7 +19,13 @@ import '../utils/thumb.css';
 function errorMessage(err: any): string {
     if (!err) return '';
     if (typeof err === 'string') return err;
-    return err.message || err.statusText || String(err);
+    // Eden Treaty 把非 2xx 的响应体放在 error.value（通常是字符串，例如存储接口
+    // 返回的 'S3_ENDPOINT is not defined' / 'S3 put failed'），而 error.message 往往
+    // 为 undefined。若直接读 message，界面只会看到无意义的 'Internal Server Error'，
+    // 无从定位上传失败的真实原因。故优先取 error.value。
+    if (typeof err.value === 'string' && err.value) return err.value;
+    if (typeof err.message === 'string' && err.message) return err.message;
+    return err.statusText || String(err);
 }
 
 /** 保存成功后推送到全局 store：立即生效，无需 F5 */
@@ -430,15 +436,21 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
         client.storage.index.post({ key: file.name, file }, { headers: headersWithAuth() })
             .then(({ data, error }: { data?: any; error?: any }) => {
                 if (error) {
-                    showAlert(t('settings.update_failed$message', { message: errorMessage(error) }));
+                    showAlert(t('upload.failed$message', { message: errorMessage(error) }));
                     setUploading(false);
                     return;
                 }
-                if (data) saveConfig(String(data));
+                // 上传成功但后端未返回可用地址：避免静默成功却什么都不发生
+                if (!data || typeof data !== 'string' || !data.trim()) {
+                    showAlert(t('upload.failed$message', { message: t('upload.empty') }));
+                    setUploading(false);
+                    return;
+                }
+                saveConfig(data.trim());
                 setUploading(false);
             })
             .catch((err: any) => {
-                showAlert(t('settings.update_failed$message', { message: errorMessage(err) }));
+                showAlert(t('upload.failed$message', { message: errorMessage(err) }));
                 setUploading(false);
             });
         e.target.value = "";

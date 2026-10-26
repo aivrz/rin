@@ -142,7 +142,8 @@ function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: Sh
     )
     .then(({ data, error }) => {
       if (error) {
-        showAlert(t("upload.failed", { error: error.value }));
+        const reason = error?.value || "未知错误";
+        showAlert(t("upload.failed$message", { message: reason }));
       }
       if (data) {
         onSuccess(data);

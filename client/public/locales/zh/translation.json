@@ -232,6 +232,8 @@
   "update$sth": "更新 {{sth}}",
   "upload": {
     "failed": "上传失败",
+    "failed$message": "上传失败：{{message}}",
+    "empty": "上传成功但未返回图片地址，请重试",
     "failed$size": "上传失败，文件大小不能超过 {{size}} MB",
     "title": "上传"
   },

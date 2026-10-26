@@ -232,6 +232,8 @@
   "update$sth": "Update {{sth}}",
   "upload": {
     "failed": "Upload failed",
+    "failed$message": "Upload failed: {{message}}",
+    "empty": "Upload succeeded but no image URL returned, please retry",
     "failed$size": "Upload failed, file size cannot exceed {{size}} MB",
     "title": "Upload"
   },
