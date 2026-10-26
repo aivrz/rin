@@ -5,6 +5,7 @@ import { users, oauthIdentities } from "../db/schema";
 import { setup } from "../setup";
 import { ServerConfig } from "../utils/config-store";
 import { randomHex } from "../utils/crypto";
+import { cookieAttrs } from "../utils/cookie";
 
 // erphplogin 整合：QQ / 微博 / 微信网页授权 三种 OAuth 登录。
 // 微信网页授权（snsapi_userinfo）需要认证「服务号」资质，订阅号无法使用，未具备时该入口置灰。
@@ -92,7 +93,7 @@ async function exchangeWechat(code: string, appid: string, appsecret: string): P
     return { openid: token.openid, username: info.nickname || ('wx_' + token.openid.slice(0, 8)), avatar: info.headimgurl || '' };
 }
 
-async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, profile: OAuthProfile) {
+async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, profile: OAuthProfile, request?: Request) {
     let identity = await db.query.oauthIdentities.findFirst({
         where: and(eq(oauthIdentities.provider, provider), eq(oauthIdentities.openid, profile.openid)),
     });
@@ -108,7 +109,7 @@ async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, p
         await db.insert(oauthIdentities).values({ userId, provider, openid: profile.openid, avatar: profile.avatar });
     }
     const token = await jwt.sign({ id: userId });
-    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax${cookieAttrs(request)}`;
     return token;
 }
 
@@ -154,7 +155,7 @@ export function OAuthService() {
                 set.status = 502;
                 return 'OAuth failed';
             }
-            const token = await upsertOAuthUser(db, jwt, set, provider, profile);
+            const token = await upsertOAuthUser(db, jwt, set, provider, profile, request);
             const redirectHost = cookie.redirect_to?.value || origin;
             set.headers['Content-Type'] = 'text/html';
             set.redirect = `${redirectHost}/callback?token=${token}`;
