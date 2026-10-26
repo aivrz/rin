@@ -294,6 +294,7 @@ export function WritingPage({ id }: { id?: number }) {
   const [uploading, setUploading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [imageLink, setImageLink] = useState("")
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   function markSaved() {
@@ -374,6 +375,19 @@ export function WritingPage({ id }: { id?: number }) {
       }, showAlert);
     }
   };
+
+  function insertImageLink(url: string) {
+    const u = url.trim();
+    if (!u) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = editor.getSelection();
+    if (!selection) return;
+    editor.executeEdits(undefined, [{
+      range: selection,
+      text: `![image](${u})\n`,
+    }]);
+  }
 
   function UploadImageButton() {
     const { showAlert, AlertUI } = useAlert();
@@ -559,8 +573,19 @@ export function WritingPage({ id }: { id?: number }) {
               </div>
               <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
                 <div className={"flex flex-col " + (preview === 'preview' ? "hidden" : "")}>
-                  <div className="flex flex-row justify-start mb-2">
+                  <div className="flex flex-row justify-start mb-2 items-center gap-2">
                     <UploadImageButton />
+                    <input
+                      value={imageLink}
+                      onChange={(e) => setImageLink(e.target.value)}
+                      placeholder="粘贴图片链接"
+                      className="flex-1 min-w-0 rounded-lg px-3 py-1.5 text-sm outline-none bg-secondary t-primary"
+                    />
+                    <button onClick={() => { insertImageLink(imageLink); setImageLink(""); }}
+                      className="rounded-full px-3 py-1.5 text-xs text-white cursor-pointer"
+                      style={{ background: 'linear-gradient(90deg,#FC466B,#3F5EFB)' }}>
+                      插入
+                    </button>
                   </div>
                   <div
                     className={"relative rounded-xl transition-colors " + (dragOver ? "ring-2 ring-[var(--theme)] bg-secondary/40" : "ring-1 ring-transparent")}

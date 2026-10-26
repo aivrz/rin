@@ -46,7 +46,8 @@ function App() {
             id: data.id,
             avatar: data.avatar || '',
             permission: data.permission,
-            name: data.username
+            name: data.username,
+            provider: data.provider
           })
         }
       })

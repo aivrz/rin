@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { URL } from "url";
 import type { DB } from "../_worker";
-import { users } from "../db/schema";
+import { oauthIdentities, users } from "../db/schema";
 import { setup } from "../setup";
 import { getDB, getEnv } from "../utils/di";
 import { cdnHost, rewriteCdnStr } from "../utils/cdn";
@@ -108,11 +108,23 @@ export function UserService() {
                     const env = getEnv();
                     const cdn = await cdnHost(env);
                     const from = env.S3_ACCESS_HOST;
+                    // 判定登录方式：微信(扫码)用户有 weixinid；QQ/微博/微信(OAuth) 落在 oauth_identities；
+                    // 其余（含首个通过 GitHub 注册的管理员）归为 github。前端据此显示登录方式并决定「管理后台」入口。
+                    let provider = 'github';
+                    if (user.weixinid) {
+                        provider = 'weixin';
+                    } else {
+                        const identity = await db.query.oauthIdentities.findFirst({
+                            where: eq(oauthIdentities.userId, user.id),
+                        });
+                        if (identity) provider = identity.provider;
+                    }
                     return {
                         id: user.id,
                         username: user.username,
                         avatar: rewriteCdnStr(user.avatar, cdn, from),
                         permission: user.permission === 1,
+                        provider,
                         createdAt: user.createdAt,
                         updatedAt: user.updatedAt,
                     }
