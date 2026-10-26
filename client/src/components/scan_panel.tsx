@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { setCookie } from "typescript-cookie";
 import { useServerConfig } from "../state/config";
+import { endpoint } from "../main";
 
 // 关注公众号扫码登录面板（erphp-weixin-scan 整合前端部分）。
 // 流程：展示关注二维码 → 用户关注并回复“登录”获取 6 位验证码 → 输入验证码 → 轮询 /ews/login。
@@ -15,7 +17,7 @@ export function ScanPanel() {
 
     useEffect(() => {
         // 兜底：若 store 尚未加载（用户未进过设置页），从公开接口拉取一次
-        fetch("/ews/qrcode")
+        fetch(`${endpoint}/ews/qrcode`)
             .then(r => r.json())
             .then((d: any) => { if (d && d.qrcodeUrl) setFetchedQr(d.qrcodeUrl); })
             .catch(() => { });
@@ -33,7 +35,7 @@ export function ScanPanel() {
         timerRef.current = setInterval(async () => {
             attempts++;
             try {
-                const res = await fetch("/ews/login", {
+                const res = await fetch(`${endpoint}/ews/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ code }),
@@ -43,6 +45,9 @@ export function ScanPanel() {
                     if (timerRef.current) clearInterval(timerRef.current);
                     setPolling(false);
                     setMsg("登录成功，正在刷新…");
+                    // 跨域登录：后端下发的 Set-Cookie 默认不会跨站落盘，故前端显式在自身域写入 token，
+                    // 与 GitHub OAuth（callback.tsx）保持一致，确保刷新后 document.cookie 可读到 token。
+                    if (d.token) setCookie('token', d.token, { expires: 7, path: '/' });
                     setTimeout(() => window.location.reload(), 800);
                 } else if (attempts > 30) {
                     if (timerRef.current) clearInterval(timerRef.current);

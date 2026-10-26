@@ -74,7 +74,7 @@ async function upsertWeixinUser(db: DB, jwt: any, set: any, openid: string, nick
     }
     const token = await jwt.sign({ id: user!.id });
     set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax${cookieAttrs(request)}`;
-    return user!;
+    return token;
 }
 
 export function WechatService() {
@@ -90,8 +90,8 @@ export function WechatService() {
                     if (!rec || !rec.openid) return { status: 0 };
                     const updated = new Date(rec.updateTime || rec.createTime || 0).getTime();
                     if (Date.now() - updated > EWS_VALID_MS) return { status: 0, message: '验证码已过期' };
-                    await upsertWeixinUser(db, jwt, set, rec.openid, rec.nickname || '', rec.avatar || '', request);
-                    return { status: 1 };
+                    const token = await upsertWeixinUser(db, jwt, set, rec.openid, rec.nickname || '', rec.avatar || '', request);
+                    return { status: 1, token };
                 }, {
                     body: t.Object({ code: t.String() })
                 })
