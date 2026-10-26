@@ -10,7 +10,9 @@ export function CallbackPage() {
     useEffect(() => {
         const token = searchParams.get('token');
         if (token) {
-            setCookie('token', token, { expires: 7, path: '/' })
+            // 服务端 JWT 无 exp，会话寿命由该 cookie 决定；7 天太短（用户隔周回来必然
+            // 遇到"更新失败: Unauthorized"），延长到 30 天。
+            setCookie('token', token, { expires: 30, path: '/' })
             // 拉取当前用户，管理员跳转到写作/管理界面，其余回首页
             client.user.profile.get({
                 headers: headersWithAuth()

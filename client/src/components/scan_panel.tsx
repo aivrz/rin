@@ -47,7 +47,8 @@ export function ScanPanel() {
                     setMsg("登录成功，正在刷新…");
                     // 跨域登录：后端下发的 Set-Cookie 默认不会跨站落盘，故前端显式在自身域写入 token，
                     // 与 GitHub OAuth（callback.tsx）保持一致，确保刷新后 document.cookie 可读到 token。
-                    if (d.token) setCookie('token', d.token, { expires: 7, path: '/' });
+                    // 服务端 JWT 无 exp，会话寿命由该 cookie 决定，与 callback.tsx 同步用 30 天。
+                    if (d.token) setCookie('token', d.token, { expires: 30, path: '/' });
                     setTimeout(() => window.location.reload(), 800);
                 } else if (attempts > 30) {
                     if (timerRef.current) clearInterval(timerRef.current);

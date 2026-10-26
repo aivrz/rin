@@ -73,7 +73,7 @@ async function upsertWeixinUser(db: DB, jwt: any, set: any, openid: string, nick
         if (Object.keys(patch).length) await db.update(users).set(patch).where(eq(users.id, user.id));
     }
     const token = await jwt.sign({ id: user!.id });
-    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax${cookieAttrs(request)}`;
+    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${cookieAttrs(request)}`;
     return token;
 }
 

@@ -54,7 +54,7 @@ export function UserService() {
                                 await db.update(users).set(profile).where(eq(users.id, user.id));
                                 token.set({
                                     value: await jwt.sign({ id: user.id, username: user.username, permission: user.permission ?? undefined }),
-                                    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                                    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
                                     path: '/',
                                 })
                             } else {
@@ -73,7 +73,7 @@ export function UserService() {
                                 } else {
                                     token.set({
                                         value: await jwt.sign({ id: result[0].insertedId, username: profile.username, permission: profile.permission ?? undefined }),
-                                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
                                         path: '/',
                                     })
                                 }

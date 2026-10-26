@@ -109,7 +109,7 @@ async function upsertOAuthUser(db: DB, jwt: any, set: any, provider: Provider, p
         await db.insert(oauthIdentities).values({ userId, provider, openid: profile.openid, avatar: profile.avatar });
     }
     const token = await jwt.sign({ id: userId });
-    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax${cookieAttrs(request)}`;
+    set.headers['Set-Cookie'] = `token=${token}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${cookieAttrs(request)}`;
     return token;
 }
 

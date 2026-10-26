@@ -18,6 +18,13 @@ import '../utils/thumb.css';
  */
 function errorMessage(err: any): string {
     if (!err) return '';
+    // 401 优先翻译：后端只认 Authorization Bearer，JWT 签发无 exp，会话寿命完全由
+    // 前端 token cookie 决定；cookie 过期/丢失时所有需登录的写入（上传/保存）都会
+    // 401。笼统的 'Unauthorized' 用户无法理解，这里给出可行动的指引。
+    const status = typeof err.status === 'number'
+        ? err.status
+        : (err.response && typeof err.response.status === 'number' ? err.response.status : undefined);
+    if (status === 401) return '登录已过期或未登录，请点击右上角头像重新登录后再操作';
     if (typeof err === 'string') return err;
     // Eden Treaty 把非 2xx 的响应体放在 error.value（通常是字符串，例如存储接口
     // 返回的 'S3_ENDPOINT is not defined' / 'S3 put failed'），而 error.message 往往
