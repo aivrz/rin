@@ -103,11 +103,12 @@ export function StorageService() {
                         await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: new Uint8Array(buf), ContentType: contentType }));
                         return `${await cdnAccessHost(env)}/${hashkey}`;
                     } catch (e: any) {
-                        // 透出真实 S3 错误便于排查（自托管管理端，暴露 S3 文案无碍）
+                        // 透出真实 S3 错误便于排查（自托管管理端，暴露 S3 文案无碍）。
+                        // 不加「上传失败」前缀：前端 errorMessage 会统一包 upload.failed$message。
                         const detail = (e?.message || String(e)).slice(0, 300);
                         console.error('storage upload failed', detail);
                         set.status = 400;
-                        return '上传失败：' + detail;
+                        return detail || '上传失败，请稍后重试';
                     }
                 }, {
                     body: t.Object({
