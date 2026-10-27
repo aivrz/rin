@@ -21,18 +21,14 @@ const FRONTEND_URL = env("FRONTEND_URL", "")
 
 const S3_ENDPOINT = env("S3_ENDPOINT", "")
 const S3_ACCESS_HOST = env("S3_ACCESS_HOST", S3_ENDPOINT)
-const S3_BUCKET = env("S3_BUCKET", "")
 const S3_CACHE_FOLDER = renv("S3_CACHE_FOLDER", 'cache/')
 const S3_FOLDER = renv("S3_FOLDER", 'images/')
-const S3_REGION = renv("S3_REGION", "auto")
-const S3_FORCE_PATH_STYLE = env("S3_FORCE_PATH_STYLE", "false")
+const R2_BUCKET_NAME = env("R2_BUCKET_NAME", "rin-storage")
 const WEBHOOK_URL = env("WEBHOOK_URL", "")
 const RSS_TITLE = env("RSS_TITLE", "")
 const RSS_DESCRIPTION = env("RSS_DESCRIPTION", "")
 
 // Secrets
-const accessKeyId = env("S3_ACCESS_KEY_ID")
-const secretAccessKey = env("S3_SECRET_ACCESS_KEY")
 const jwtSecret = env("JWT_SECRET")
 const githubClientId = env("RIN_GITHUB_CLIENT_ID")
 const githubClientSecret = env("RIN_GITHUB_CLIENT_SECRET")
@@ -66,16 +62,17 @@ crons = ["*/20 * * * *"]
 FRONTEND_URL = "${FRONTEND_URL}"
 S3_FOLDER = "${S3_FOLDER}"
 S3_CACHE_FOLDER="${S3_CACHE_FOLDER}"
-S3_REGION = "${S3_REGION}"
 S3_ENDPOINT = "${S3_ENDPOINT}"
 S3_ACCESS_HOST = "${S3_ACCESS_HOST}"
-S3_BUCKET = "${S3_BUCKET}"
-S3_FORCE_PATH_STYLE = "${S3_FORCE_PATH_STYLE}"
 WEBHOOK_URL = "${WEBHOOK_URL}"
 RSS_TITLE = "${RSS_TITLE}"
 RSS_DESCRIPTION = "${RSS_DESCRIPTION}"
 CDN_HOST = "${cdnHost}"
 EWS_QRCODE_URL = "${ewsQrcodeUrl}"
+
+[[r2_buckets]]
+binding = "RIN_BUCKET"
+bucket_name = "${R2_BUCKET_NAME}"
 
 [placement]
 mode = "smart"
@@ -170,8 +167,6 @@ async function putSecret(name: string, value?: string) {
     }
 }
 
-await putSecret('S3_ACCESS_KEY_ID', accessKeyId)
-await putSecret('S3_SECRET_ACCESS_KEY', secretAccessKey)
 await putSecret('RIN_GITHUB_CLIENT_ID', githubClientId)
 await putSecret('RIN_GITHUB_CLIENT_SECRET', githubClientSecret)
 await putSecret('JWT_SECRET', jwtSecret)
