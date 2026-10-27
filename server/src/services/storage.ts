@@ -98,12 +98,16 @@ export function StorageService() {
                     const hash = buf2hex(hashArray);
                     const hashkey = path.join(folder, hash + "." + suffix);
                     try {
-                        await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: file, ContentType: contentType }));
+                        // 传 Uint8Array 而非 File/Blob：长度可知，SDK 不会退化为
+                        // STREAMING-UNSIGNED-PAYLOAD-TRAILER（R2 不支持，会返回 400）。
+                        await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: new Uint8Array(buf), ContentType: contentType }));
                         return `${await cdnAccessHost(env)}/${hashkey}`;
                     } catch (e: any) {
-                        console.error('storage upload failed', e?.message ?? e);
+                        // 透出真实 S3 错误便于排查（自托管管理端，暴露 S3 文案无碍）
+                        const detail = (e?.message || String(e)).slice(0, 300);
+                        console.error('storage upload failed', detail);
                         set.status = 400;
-                        return '上传失败，请稍后重试';
+                        return '上传失败：' + detail;
                     }
                 }, {
                     body: t.Object({
