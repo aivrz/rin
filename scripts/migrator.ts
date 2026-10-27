@@ -106,7 +106,7 @@ type D1Item = {
     created_at: string,
 }
 
-const { exitCode, stderr, stdout } = await $`bunx wrangler d1 create ${DB_NAME}`.quiet().nothrow()
+const { exitCode, stderr, stdout } = await $`bunx wrangler@3 d1 create ${DB_NAME}`.quiet().nothrow()
 if (exitCode !== 0) {
     if (!stderr.toString().includes('already exists')) {
         console.error(`Failed to create D1 "${DB_NAME}"`)
@@ -121,7 +121,7 @@ if (exitCode !== 0) {
     console.log(`Created D1 "${DB_NAME}"`)
 }
 console.log(`Searching D1 "${DB_NAME}"`)
-const listJsonString = await $`bunx wrangler d1 list --json`.quiet().text()
+const listJsonString = await $`bunx wrangler@3 d1 list --json`.quiet().text()
 const listJson = JSON.parse(listJsonString) as D1Item[] ?? []
 const existing = listJson.find((x: D1Item) => x.name === DB_NAME)
 if (existing) {
@@ -153,7 +153,7 @@ try {
         .sort();
     console.log("migration_version:", migrationVersion, "Migration SQL List: ", sqlFiles)
     for (const file of sqlFiles) {
-        await $`bunx wrangler d1 execute ${DB_NAME} --remote --file ./server/sql/${file} -y`
+        await $`bunx wrangler@3 d1 execute ${DB_NAME} --remote --file ./server/sql/${file} -y`
         console.log(`Migrated ${file}`)
     }
     if (sqlFiles.length === 0) {
@@ -182,7 +182,7 @@ console.log(`Put secrets`)
 async function putSecret(name: string, value?: string) {
     if (value) {
         console.log(`Put ${name}`)
-        await $`echo "${value}" | bun wrangler secret put ${name}`
+        await $`echo "${value}" | bunx wrangler@3 secret put ${name}`
     } else {
         console.log(`Skip ${name}, value is not defined.`)
     }
@@ -209,10 +209,10 @@ console.log(`----------------------------`)
 // 幂等：已存在则跳过；其余错误才中断。
 const QUEUE_NAME = "rin-cron"
 console.log(`Create Queue "${QUEUE_NAME}"`)
-const { exitCode: qExit, stderr: qErr, stdout: qOut } = await $`bunx wrangler queues create ${QUEUE_NAME}`.quiet().nothrow()
+const { exitCode: qExit, stderr: qErr, stdout: qOut } = await $`bunx wrangler@3 queues create ${QUEUE_NAME}`.quiet().nothrow()
 if (qExit !== 0) {
     const qMsg = `${qErr ?? ''}${qOut ?? ''}`
-    if (!/already exists/i.test(qMsg)) {
+    if (!/already exists|already taken/i.test(qMsg)) {
         console.error(`Failed to create Queue "${QUEUE_NAME}"`)
         console.error(qMsg)
         process.exit(1)
@@ -223,7 +223,7 @@ if (qExit !== 0) {
 }
 console.log(`----------------------------`)
 console.log(`Deploying`)
-await $`echo -e "n\ny\n" | bunx wrangler deploy`
+await $`echo -e "n\ny\n" | bunx wrangler@3 deploy`
 console.log(`Deployed`)
 console.log(`----------------------------`)
 console.log(`🎉All Done.`)
