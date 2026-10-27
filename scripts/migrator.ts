@@ -212,7 +212,9 @@ console.log(`Create Queue "${QUEUE_NAME}"`)
 const { exitCode: qExit, stderr: qErr, stdout: qOut } = await $`bunx wrangler@3 queues create ${QUEUE_NAME}`.quiet().nothrow()
 if (qExit !== 0) {
     const qMsg = `${qErr ?? ''}${qOut ?? ''}`
-    if (!/already exists|already taken/i.test(qMsg)) {
+    // 队列已存在时，不同 wrangler 版本报错文案不一致：already exists / already taken /
+    // settings are invalid 等，均视为已就绪，跳过即可（绑定按同名队列复用）。
+    if (!/already exists|already taken|settings are invalid/i.test(qMsg)) {
         console.error(`Failed to create Queue "${QUEUE_NAME}"`)
         console.error(qMsg)
         process.exit(1)
