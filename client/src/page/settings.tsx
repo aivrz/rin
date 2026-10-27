@@ -9,31 +9,9 @@ import { client, oauth_url } from "../main.tsx";
 import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConfigValue, useClientConfig, useServerConfig } from "../state/config.ts";
 import { refreshMusic } from "../state/music.ts";
 import { headersWithAuth } from "../utils/auth.ts";
+import { errorMessage } from "../utils/errorMessage";
+import { uploadImageToR2 } from "../utils/upload";
 import '../utils/thumb.css';
-
-/**
- * Eden Treaty 对非 2xx 响应是 resolve 而不是 reject，错误体放在 error 字段。
- * 它可能是字符串（如 'Unauthorized' / 'Rejected keys: xxx'），
- * 直接读 err.message 会得到 undefined，界面上只出现空错误信息。
- */
-function errorMessage(err: any): string {
-    if (!err) return '';
-    // 401 优先翻译：后端只认 Authorization Bearer，JWT 签发无 exp，会话寿命完全由
-    // 前端 token cookie 决定；cookie 过期/丢失时所有需登录的写入（上传/保存）都会
-    // 401。笼统的 'Unauthorized' 用户无法理解，这里给出可行动的指引。
-    const status = typeof err.status === 'number'
-        ? err.status
-        : (err.response && typeof err.response.status === 'number' ? err.response.status : undefined);
-    if (status === 401) return '登录已过期或未登录，请点击右上角头像重新登录后再操作';
-    if (typeof err === 'string') return err;
-    // Eden Treaty 把非 2xx 的响应体放在 error.value（通常是字符串，例如存储接口
-    // 返回的 'S3_ENDPOINT is not defined' / 'S3 put failed'），而 error.message 往往
-    // 为 undefined。若直接读 message，界面只会看到无意义的 'Internal Server Error'，
-    // 无从定位上传失败的真实原因。故优先取 error.value。
-    if (typeof err.value === 'string' && err.value) return err.value;
-    if (typeof err.message === 'string' && err.message) return err.message;
-    return err.statusText || String(err);
-}
 
 /** 保存成功后推送到全局 store：立即生效，无需 F5 */
 function applyConfigValue(type: 'client' | 'server', key: string, value: any) {
@@ -435,31 +413,10 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
     function handleFile(e: ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (file.size > 5 * 1024 * 1024) {
-            showAlert(t('upload.failed$size', { size: 5 }));
-            return;
-        }
         setUploading(true);
-        client.storage.index.post({ key: file.name, file }, { headers: headersWithAuth() })
-            .then(({ data, error }: { data?: any; error?: any }) => {
-                if (error) {
-                    showAlert(t('upload.failed$message', { message: errorMessage(error) }));
-                    setUploading(false);
-                    return;
-                }
-                // 上传成功但后端未返回可用地址：避免静默成功却什么都不发生
-                if (!data || typeof data !== 'string' || !data.trim()) {
-                    showAlert(t('upload.failed$message', { message: t('upload.empty') }));
-                    setUploading(false);
-                    return;
-                }
-                saveConfig(data.trim());
-                setUploading(false);
-            })
-            .catch((err: any) => {
-                showAlert(t('upload.failed$message', { message: errorMessage(err) }));
-                setUploading(false);
-            });
+        uploadImageToR2(file)
+            .then((url) => { saveConfig(url); setUploading(false); })
+            .catch((err: any) => { showAlert(err?.message || t('upload.failed')); setUploading(false); });
         e.target.value = "";
     }
 

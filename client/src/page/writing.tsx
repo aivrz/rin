@@ -16,6 +16,7 @@ import { Checkbox, Input } from "../components/input";
 import { Markdown } from "../components/markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
+import { uploadImageToR2 } from "../utils/upload";
 import { Cache, useCache } from '../utils/cache';
 import { siteName } from "../utils/constants";
 import { useColorMode } from "../utils/darkModeUtils";
@@ -129,30 +130,9 @@ async function update({
 }
 
 function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: ShowAlertType) {
-  const t = i18n.t
-  client.storage.index
-    .post(
-      {
-        key: file.name,
-        file: file,
-      },
-      {
-        headers: headersWithAuth(),
-      }
-    )
-    .then(({ data, error }) => {
-      if (error) {
-        const reason = error?.value || "未知错误";
-        showAlert(t("upload.failed$message", { message: reason }));
-      }
-      if (data) {
-        onSuccess(data);
-      }
-    })
-    .catch((e: any) => {
-      console.error(e);
-      showAlert(t("upload.failed", { error: e.message }));
-    });
+  uploadImageToR2(file)
+    .then((url) => onSuccess(url))
+    .catch((e: any) => showAlert(e?.message || i18n.t("upload.failed")));
 }
 
 

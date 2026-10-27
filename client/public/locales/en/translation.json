@@ -235,6 +235,7 @@
     "failed$message": "Upload failed: {{message}}",
     "empty": "Upload succeeded but no image URL returned, please retry",
     "failed$size": "Upload failed, file size cannot exceed {{size}} MB",
+    "failed$type": "Upload failed, only image files are supported",
     "title": "Upload"
   },
   "uploading": "Uploading...",
