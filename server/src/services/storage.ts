@@ -8,8 +8,13 @@ import { getEnv } from "../utils/di";
 import { createS3Client } from "../utils/s3";
 import { accessHost as cdnAccessHost } from "../utils/cdn";
 
-// 允许的图片扩展名 → 内容类型。用于校验预签名请求，避免客户端伪造扩展名把
-// 非图片写进 R2（admin 专属，防的是格式滥用而非越权）。
+function buf2hex(buffer: ArrayBuffer) {
+    return [...new Uint8Array(buffer)]
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+// 允许的图片扩展名 → 内容类型。用于校验，避免把非图片写进 R2。
 const IMAGE_EXT: Record<string, string> = {
     png: "image/png",
     jpg: "image/jpeg",
@@ -21,13 +26,26 @@ const IMAGE_EXT: Record<string, string> = {
     avif: "image/avif",
 };
 
+function extFromName(name: string): string {
+    const m = name.match(/\.([a-zA-Z0-9]+)$/);
+    return m ? m[1].toLowerCase() : "";
+}
+
+// 魔数兜底：文件名无扩展名或扩展名不可信时，按文件头判断真实格式。
+function extFromMagic(buf: ArrayBuffer): string {
+    const b = new Uint8Array(buf.slice(0, 12));
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "png";
+    if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "jpg";
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "gif";
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "webp";
+    return "";
+}
+
 export function StorageService() {
     const env: Env = getEnv();
     const endpoint = env.S3_ENDPOINT;
     const bucket = env.S3_BUCKET;
     const folder = env.S3_FOLDER || '';
-    // 图片仍物理上传到 R2（S3 兼容），但访问域名优先走七牛镜像回源 CDN_HOST（含后端设置 cdn_host）；
-    // 未配置时回退到原 S3_ACCESS_HOST / endpoint，保证本地开发可用。
     const accessKeyId = env.S3_ACCESS_KEY_ID;
     const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
     const s3 = createS3Client();
@@ -45,16 +63,65 @@ export function StorageService() {
         .use(setup())
         .group('/storage', (group) =>
             group
-                // 预签名直传：Worker 只签发一个限时 PUT URL（不接触文件字节），客户端直传 R2，
-                // 省去代理上传的双倍流量与 CPU，并支持真实上传进度/可中断。
-                // key 由客户端算出的 SHA-1 决定（天然去重），服务端用正则校验防路径穿越。
+                // 代理上传（兜底通道）：字节经 Worker 转发到 R2，不依赖 R2 桶的 CORS 配置，
+                // 当预签名直传因 CORS/网络失败时由前端回退到此。保留 SHA-1 去重与 admin 守卫。
+                .post('/', async ({ admin, set, body: { key, file } }) => {
+                    const ce = configError();
+                    if (ce) {
+                        set.status = 500;
+                        return ce;
+                    }
+                    if (!admin) {
+                        set.status = 403;
+                        return 'Permission denied';
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                        set.status = 413;
+                        return '文件过大（上限 10MB）';
+                    }
+                    const declared = file.type || '';
+                    if (!declared.startsWith('image/')) {
+                        set.status = 415;
+                        return '仅支持图片文件';
+                    }
+                    let suffix = extFromName(file.name || key || '');
+                    if (!IMAGE_EXT[suffix]) {
+                        const magic = extFromMagic(await file.arrayBuffer());
+                        if (magic) suffix = magic;
+                    }
+                    if (!suffix || !IMAGE_EXT[suffix]) {
+                        set.status = 415;
+                        return '不支持的图片格式';
+                    }
+                    const contentType = IMAGE_EXT[suffix];
+                    const buf = await file.arrayBuffer();
+                    const hashArray = await crypto.subtle.digest({ name: 'SHA-1' }, buf);
+                    const hash = buf2hex(hashArray);
+                    const hashkey = path.join(folder, hash + "." + suffix);
+                    try {
+                        await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: file, ContentType: contentType }));
+                        return `${await cdnAccessHost(env)}/${hashkey}`;
+                    } catch (e: any) {
+                        console.error('storage upload failed', e?.message ?? e);
+                        set.status = 400;
+                        return '上传失败，请稍后重试';
+                    }
+                }, {
+                    body: t.Object({
+                        key: t.String(),
+                        file: t.File()
+                    })
+                })
+                // 预签名直传（高效通道）：Worker 只签发一个限时 PUT URL（不接触文件字节），
+                // 客户端直传 R2，省去代理上传的双倍流量与 CPU。key 由客户端 SHA-1 决定（去重），
+                // 正则校验防路径穿越。需 R2 桶配置允许本站点的 CORS（PUT + Content-Type）才会生效，
+                // 否则前端回退到上面的代理通道。
                 .post('/sign', async ({ admin, set, body: { hash, ext, type } }) => {
                     const ce = configError();
                     if (ce) {
                         set.status = 500;
                         return ce;
                     }
-                    // 仅管理员可获取上传凭证
                     if (!admin) {
                         set.status = 403;
                         return 'Permission denied';
@@ -67,7 +134,6 @@ export function StorageService() {
                         set.status = 400;
                         return 'bad ext';
                     }
-                    // 类型须与扩展名严格对应，防客户端错配
                     if (IMAGE_EXT[ext] !== type) {
                         set.status = 400;
                         return 'bad type';

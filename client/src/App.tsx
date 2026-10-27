@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useContext, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useContext, useMemo, useState, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import { getCookie } from 'typescript-cookie'
 import { DefaultParams, PathPattern, Route, Switch, useLocation } from 'wouter'
@@ -30,15 +30,19 @@ const FriendsPage = lazy(() => import('./page/friends').then(m => ({ default: m.
 const FeedPage = lazy(() => import('./page/feed').then(m => ({ default: m.FeedPage })))
 
 function App() {
-  const ref = useRef(false)
   const { t } = useTranslation()
   const [profile, setProfile] = useState<Profile | undefined>()
   const [profileLoaded, setProfileLoaded] = useState(false)
   // 唯一数据源：模块级配置 store。首帧用 sessionStorage 缓存同步渲染，随后后台校验最新值。
   const config = useClientConfig()
-  useEffect(() => {
-    if (ref.current) return
-    if (getCookie('token')?.length ?? 0 > 0) {
+  // 拉取并写入当前登录用户信息；同时作为登录成功后的刷新入口（监听 rin:login）。
+  // 关键修复：OAuth 回调 / 扫码登录时，前端在自身（Pages）域名写入 token 后派发 rin:login，
+  // 这里据此重新拉取 profile。否则 App 仅在挂载时拉取一次，而挂载瞬间前端域名还没有 token
+  // （token 由服务端写在 Worker 域名、由 CallbackPage 随后才写到前端域名），会导致跳到 /writing
+  // 后 profile 仍是 undefined → 管理员被判定为「无权限」而卡住/跳回首页。
+  const refreshProfile = useCallback(() => {
+    if ((getCookie('token')?.length ?? 0) > 0) {
+      setProfileLoaded(false)
       client.user.profile.get({
         headers: headersWithAuth()
       }).then(({ data }) => {
@@ -51,13 +55,20 @@ function App() {
             provider: data.provider
           })
         }
-      }).catch(() => {}).finally(() => setProfileLoaded(true))
+      }).catch(() => setProfile(undefined))
+        .finally(() => setProfileLoaded(true))
     } else {
+      setProfile(undefined)
       setProfileLoaded(true)
     }
-    loadClientConfig()
-    ref.current = true
   }, [])
+  useEffect(() => {
+    refreshProfile()
+    loadClientConfig()
+    const onLogin = () => refreshProfile()
+    window.addEventListener('rin:login', onLogin)
+    return () => window.removeEventListener('rin:login', onLogin)
+  }, [refreshProfile])
   const favicon = useMemo(() => config.get<string>("favicon"), [config])
   return (
     <>

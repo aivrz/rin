@@ -1,19 +1,21 @@
 import { useEffect } from "react";
 import { setCookie } from "typescript-cookie";
-import { useLocation, useSearch } from "wouter";
+import { useSearch } from "wouter";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 
 export function CallbackPage() {
     const searchParams = new URLSearchParams(useSearch());
-    const [_, setLocation] = useLocation();
     useEffect(() => {
         const token = searchParams.get('token');
         if (token) {
-            // 服务端 JWT 无 exp，会话寿命由该 cookie 决定；7 天太短（用户隔周回来必然
-            // 遇到"更新失败: Unauthorized"），延长到 30 天。
+            // 服务端 JWT 无 exp，会话寿命由该 cookie 决定；30 天避免隔周回来必遇 Unauthorized。
             setCookie('token', token, { expires: 30, path: '/' })
-            // 拉取当前用户，管理员跳转到写作/管理界面，其余回首页
+            // token 写在自身（前端）域名后，通知 App 重新拉取 profile，避免客户端跳转后 profile 仍为
+            // undefined 导致管理员进不去后台。
+            window.dispatchEvent(new Event('rin:login'))
+            // 拉取当前用户，决定跳转目标。这里用整页跳转（而非 wouter 客户端导航）确保 App 重新挂载、
+            // 以最新 token 重新拉取 profile 并正确结束加载态，避免卡在 /writing 的「加载中」。
             client.user.profile.get({
                 headers: headersWithAuth()
             }).then(({ data }) => {
@@ -21,15 +23,15 @@ export function CallbackPage() {
                 const redirect = sessionStorage.getItem('rin_post_login_redirect');
                 if (redirect && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.includes(':')) {
                     sessionStorage.removeItem('rin_post_login_redirect');
-                    setLocation(redirect);
+                    window.location.assign(redirect);
                 } else if (data && typeof data !== 'string' && data.permission) {
-                    setLocation("/writing");
+                    window.location.assign("/writing");
                 } else {
-                    setLocation("/");
+                    window.location.assign("/");
                 }
-            }).catch(() => setLocation("/"));
+            }).catch(() => window.location.assign("/"));
         } else {
-            setLocation("/");
+            window.location.assign("/");
         }
     }, [searchParams]);
     return (<>

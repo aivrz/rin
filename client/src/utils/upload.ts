@@ -53,9 +53,10 @@ function putDirect(uploadUrl: string, file: File, type: string, onProgress?: (p:
 }
 
 /**
- * 统一图片上传入口（预签名直传版）：writing 与 settings 共用。
- * 流程：客户端算 SHA-1（天然去重）→ 向 /storage/sign 取限时 PUT URL → 直传 R2，
- * 字节不再绕经 Worker，省去代理上传的双倍流量与 CPU，并支持真实进度。
+ * 统一图片上传入口：writing 与 settings 共用。
+ * 通道选择：优先「预签名直传 R2」（字节不经 Worker，省流量/CPU，带真实进度）；
+ * 当直传失败（多为 R2 桶未配置本站 CORS、或网络/签名问题）时，**回退到 Worker 代理上传**
+ * （服务端直传 R2，不依赖 CORS），保证上传在任何部署环境下都可用。
  * 异常以 Error(message) 抛出，由调用方用 showAlert 统一展示。
  */
 export async function uploadImageToR2(file: File, onProgress?: (p: number) => void): Promise<string> {
@@ -69,15 +70,29 @@ export async function uploadImageToR2(file: File, onProgress?: (p: number) => vo
     if (!EXT_TYPE[ext]) ext = Object.keys(EXT_TYPE).find(k => EXT_TYPE[k] === declared) || "";
     if (!ext || !EXT_TYPE[ext]) throw new Error(t("upload.failed$type"));
     const type = EXT_TYPE[ext];
-    const buf = await file.arrayBuffer();
-    const hash = await sha1Hex(buf);
-    const { data, error } = await client.storage.sign.post(
-        { hash, ext, type },
-        { headers: headersWithAuth() }
-    );
-    if (error) throw new Error(t("upload.failed$message", { message: errorMessage(error) }));
-    // data 可能是错误字符串（配置缺失/403/400 文案）或成功对象，需先排除字符串分支
-    if (!data || typeof data === "string" || !data.uploadUrl) throw new Error(t("upload.empty"));
-    await putDirect(data.uploadUrl, file, type, onProgress);
-    return data.publicUrl;
+
+    // 1) 预签名直传优先
+    try {
+        const buf = await file.arrayBuffer();
+        const hash = await sha1Hex(buf);
+        const { data, error } = await client.storage.sign.post(
+            { hash, ext, type },
+            { headers: headersWithAuth() }
+        );
+        if (error) throw new Error(t("upload.failed$message", { message: errorMessage(error) }));
+        // data 可能是错误字符串（配置缺失/403/400 文案）或成功对象，需先排除字符串分支
+        if (!data || typeof data === "string" || !data.uploadUrl) throw new Error(t("upload.empty"));
+        await putDirect(data.uploadUrl, file, type, onProgress);
+        return data.publicUrl;
+    } catch (directErr) {
+        // 2) 回退：Worker 代理上传（免 R2 CORS）
+        console.warn('upload direct failed, fallback to proxy', directErr);
+        const { data, error } = await client.storage.index.post(
+            { key: file.name, file },
+            { headers: headersWithAuth() }
+        );
+        if (error) throw new Error(t("upload.failed$message", { message: errorMessage(error) }));
+        if (!data || typeof data !== "string" || !data.trim()) throw new Error(t("upload.empty"));
+        return data.trim();
+    }
 }
