@@ -14,9 +14,33 @@ import { MusicService } from './services/music';
 import { WechatService } from './services/wechat';
 import { OAuthService } from './services/oauth';
 
+// CORS：仅允许已知前端域 + 本地开发域，避免「任意源 + credentials」的 CSRF / 数据泄露风险。
+// FRONTEND_URL 为部署时注入的明文变量（wrangler [vars]），可逗号分隔多个；自动补全 www/裸域变体。
+// 未配置时回退为反射（origin: true），避免未知环境被锁死。
+// 注：带 Authorization / x-anon-id 的请求仍会触发预检（非简单请求），属鉴权链路固有行为。
+const runtimeEnv: Record<string, string | undefined> = (globalThis as any).process?.env || {};
+const frontendUrl = runtimeEnv.FRONTEND_URL || '';
+const allowedOrigins = new Set<string>();
+for (const raw of frontendUrl.split(',').map(s => s.trim()).filter(Boolean)) {
+    try {
+        const u = new URL(raw);
+        const naked = u.origin.startsWith('https://www.')
+            ? u.origin.replace('https://www.', 'https://')
+            : u.origin.replace(u.hostname, 'www.' + u.hostname);
+        allowedOrigins.add(u.origin);
+        allowedOrigins.add(naked);
+    } catch {
+        allowedOrigins.add(raw);
+    }
+}
+for (const dev of ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000']) {
+    allowedOrigins.add(dev);
+}
+
 export const app = () => new Elysia({ aot: false })
     .use(cors({
-        origin: true,
+        // 白名单数组：Elysia 会回显匹配的源、拒绝其余；未配置 FRONTEND_URL 时回退为反射
+        origin: frontendUrl ? Array.from(allowedOrigins) : true,
         methods: '*',
         allowedHeaders: [
             'authorization',
@@ -63,6 +87,9 @@ export const app = () => new Elysia({ aot: false })
         const auth = request.headers.get('authorization');
         const cookie = request.headers.get('cookie') || '';
         if (auth || cookie.includes('token=')) return;
+        // seo/rss 在自身 Response 上设置了更精细的 Cache-Control（s-maxage=300/600），
+        // 不在此覆盖，否则会被通用 s-maxage=60 抹平，导致边缘缓存时间变短
+        if (pathname.startsWith('/seo/') || pathname.startsWith('/sub/')) return;
         if (set.headers['Cache-Control'] || set.headers['cache-control']) return;
         set.headers['Cache-Control'] = 'public, s-maxage=60, max-age=60, stale-while-revalidate=300';
     })
