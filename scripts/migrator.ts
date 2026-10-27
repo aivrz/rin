@@ -74,6 +74,25 @@ EWS_QRCODE_URL = "${ewsQrcodeUrl}"
 binding = "RIN_BUCKET"
 bucket_name = "${R2_BUCKET_NAME}"
 
+# P2-2 Queues：cron 重活异步化（削峰/重试）。生产者与消费者同脚本（见 _worker.ts 的 queue 处理器）。
+[[queues.producers]]
+binding = "MY_QUEUE"
+queue = "rin-cron"
+
+[[queues.consumers]]
+queue = "rin-cron"
+max_batch_size = 10
+max_batch_timeout = 30
+
+# P2-3 Durable Objects：精确全局限流 / 单点协调。class_name 须与 _worker.ts 导出的类名一致。
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1-do-queue"
+new_classes = ["RateLimiter"]
+
 [placement]
 mode = "smart"
 `))

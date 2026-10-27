@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import type { R2Bucket } from "@cloudflare/workers-types";
+import type { R2Bucket, Queue, DurableObjectNamespace } from "@cloudflare/workers-types";
 
 export interface Env {
     DB: D1Database;
@@ -17,6 +17,9 @@ export interface Env {
     WEBHOOK_URL: string,
     // R2 通过 Worker 绑定访问，无需任何 S3 凭证
     RIN_BUCKET: R2Bucket,
+    // P2-2 / P2-3：Queues（cron 重活异步化）+ Durable Objects（精确全局限流/单点协调）
+    MY_QUEUE: Queue,
+    RATE_LIMITER: DurableObjectNamespace,
 
     RSS_TITLE: string,
     RSS_DESCRIPTION: string,
