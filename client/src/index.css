@@ -101,32 +101,36 @@ ul {
   0% {
     transform: scale(1) translateY(0px);
     opacity: 0;
-    box-shadow: 0 0 0 rgba(241, 241, 241, 0);
   }
 
   1% {
     transform: scale(0.96) translateY(10px);
     opacity: 0;
-    box-shadow: 0 0 0 rgba(241, 241, 241, 0);
   }
 
   100% {
     transform: scale(1) translateY(0px);
     opacity: 1;
-    box-shadow: 0 0 500px rgba(241, 241, 241, 0);
   }
 }
 
+/* 仅用 transform + opacity（GPU 合成），不再动画 box-shadow：
+   原 keyframes 里的 box-shadow 各关键帧均为 rgba(241,241,241,0)（透明），无任何可视效果，
+   却会在每帧对整块大面积区域做模糊重绘，是加载态卡顿的根因。will-change 进一步提示
+   合成器将元素提升为独立图层，避免重绘波及其余内容。 */
 .popup-content {
   animation: anvil 0.3s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
+  will-change: transform, opacity;
 }
 
 .ani-show {
   animation: anvil 0.5s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
+  will-change: transform, opacity;
 }
 
 .ani-show-fast {
   animation: anvil 0.3s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
+  will-change: transform, opacity;
 }
 
 .table {
