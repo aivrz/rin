@@ -203,6 +203,23 @@ await putSecret('EWS_TOKEN', ewsToken)
 
 console.log(`Put Done.`)
 console.log(`----------------------------`)
+// P2-2 Queues：先确保队列资源存在（wrangler.toml 只声明绑定，不会自动建队列）。
+// 幂等：已存在则跳过；其余错误才中断。
+const QUEUE_NAME = "rin-cron"
+console.log(`Create Queue "${QUEUE_NAME}"`)
+const { exitCode: qExit, stderr: qErr, stdout: qOut } = await $`bunx wrangler queues create ${QUEUE_NAME}`.quiet().nothrow()
+if (qExit !== 0) {
+    const qMsg = `${qErr ?? ''}${qOut ?? ''}`
+    if (!/already exists/i.test(qMsg)) {
+        console.error(`Failed to create Queue "${QUEUE_NAME}"`)
+        console.error(qMsg)
+        process.exit(1)
+    }
+    console.log(`Queue "${QUEUE_NAME}" already exists.`)
+} else {
+    console.log(`Created Queue "${QUEUE_NAME}"`)
+}
+console.log(`----------------------------`)
 console.log(`Deploying`)
 await $`echo -e "n\ny\n" | bunx wrangler deploy`
 console.log(`Deployed`)
