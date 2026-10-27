@@ -27,7 +27,7 @@ export function StorageService() {
         .use(setup())
         .group('/storage', (group) =>
             group
-                .post('/', async ({ uid, set, body: { key, file } }) => {
+                .post('/', async ({ admin, set, body: { key, file } }) => {
 
                     if (!endpoint) {
                         set.status = 500;
@@ -45,9 +45,11 @@ export function StorageService() {
                         set.status = 500;
                         return 'S3_BUCKET is not defined'
                     }
-                    if (!uid) {
-                        set.status = 401;
-                        return 'Unauthorized';
+                    // 仅管理员可上传：/storage 只服务于写作页与设置页的图片，属管理员专属能力，
+                    // 不能让任意登录用户向 R2 写入任意文件。
+                    if (!admin) {
+                        set.status = 403;
+                        return 'Permission denied';
                     }
                     const suffix = key.includes(".") ? key.split('.').pop() : "";
                     const hashArray = await crypto.subtle.digest(

@@ -1,7 +1,7 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useContext, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet'
 import { getCookie } from 'typescript-cookie'
-import { DefaultParams, PathPattern, Route, Switch } from 'wouter'
+import { DefaultParams, PathPattern, Route, Switch, useLocation } from 'wouter'
 import Footer from './components/footer'
 import { Header } from './components/header'
 import { Padding } from './components/padding'
@@ -14,7 +14,7 @@ import { NavPage } from './page/nav'
 import { PinnedPage } from './page/pinned'
 import { TimelinePage } from './page/timeline'
 import { ClientConfigContext, loadClientConfig, useClientConfig } from './state/config.ts'
-import { Profile, ProfileContext } from './state/profile'
+import { Profile, ProfileContext, ProfileLoadedContext } from './state/profile'
 import { headersWithAuth } from './utils/auth'
 import { tryInt } from './utils/int'
 import { SearchPage } from './page/search.tsx'
@@ -33,6 +33,7 @@ function App() {
   const ref = useRef(false)
   const { t } = useTranslation()
   const [profile, setProfile] = useState<Profile | undefined>()
+  const [profileLoaded, setProfileLoaded] = useState(false)
   // 唯一数据源：模块级配置 store。首帧用 sessionStorage 缓存同步渲染，随后后台校验最新值。
   const config = useClientConfig()
   useEffect(() => {
@@ -50,7 +51,9 @@ function App() {
             provider: data.provider
           })
         }
-      })
+      }).catch(() => {}).finally(() => setProfileLoaded(true))
+    } else {
+      setProfileLoaded(true)
     }
     loadClientConfig()
     ref.current = true
@@ -65,6 +68,7 @@ function App() {
               <link rel="icon" href={favicon} />}
           </Helmet>
           <Suspense fallback={<div className="p-4 text-sm text-neutral-500">加载中…</div>}>
+          <ProfileLoadedContext.Provider value={profileLoaded}>
           <Switch>
             <RoutePyq path="/">
               <FeedsPage />
@@ -95,23 +99,23 @@ function App() {
               }}
             </RoutePyq>
 
-            <RouteMe path="/settings" paddingClassName='mx-4'>
+            <AdminRoute path="/settings" paddingClassName='mx-4'>
               <Settings />
-            </RouteMe>
+            </AdminRoute>
 
 
-            <RouteMe path="/writing" paddingClassName='mx-4'>
+            <AdminRoute path="/writing" paddingClassName='mx-4'>
               <WritingPage />
-            </RouteMe>
+            </AdminRoute>
 
-            <RouteMe path="/writing/:id" paddingClassName='mx-4'>
+            <AdminRoute path="/writing/:id" paddingClassName='mx-4'>
               {({ id }) => {
                 const id_num = tryInt(0, id)
                 return (
                   <WritingPage id={id_num} />
                 )
               }}
-            </RouteMe>
+            </AdminRoute>
 
             <RouteMe path="/callback" >
               <CallbackPage />
@@ -164,6 +168,7 @@ function App() {
             {/* Default route in a switch */}
             <Route>404: No such page!</Route>
           </Switch>
+          </ProfileLoadedContext.Provider>
           </Suspense>
         </ProfileContext.Provider>
       </ClientConfigContext.Provider>
@@ -188,6 +193,21 @@ function RouteMe({ path, children, headerComponent, paddingClassName }:
       }}
     </Route>
   )
+}
+
+// 管理员专属路由：未加载完 profile 时显示加载态，加载完成后若非管理员则重定向首页。
+// 关闭「直接输 URL 访问 /settings、/writing」的越权入口（导航入口此前已用 when=permission 隐藏）。
+function AdminRoute({ path, children, paddingClassName }:
+  { path: PathPattern, children: React.ReactNode | ((params: DefaultParams) => React.ReactNode), paddingClassName?: string }) {
+  const profile = useContext(ProfileContext)
+  const loaded = useContext(ProfileLoadedContext)
+  const [, setLocation] = useLocation()
+  useEffect(() => {
+    if (loaded && !profile?.permission) setLocation('/')
+  }, [loaded, profile, setLocation])
+  if (!loaded) return <div className="p-4 text-sm text-neutral-500">加载中…</div>
+  if (!profile?.permission) return <div className="p-4 text-sm text-neutral-500">无权限访问该页面</div>
+  return <RouteMe path={path} paddingClassName={paddingClassName}>{children}</RouteMe>
 }
 
 // pyq 朋友圈式布局路由：不使用 Rin 通用 Header/Footer，由页面自身渲染 pyq-main 与封面。
