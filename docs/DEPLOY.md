@@ -276,6 +276,47 @@ S3_ACCESS_HOST=https://image.xeu.life
 > [!TIP]
 > 在所有环境变量调试完毕后可点击加密按钮加密环境变量（只保留 FRONTEND_URL 和 S3_FOLDER），这样下次部署时加密的环境变量就不会覆盖/删除了
 
+### 配置 R2 CORS（浏览器直传，可选但推荐）
+
+Rin 的图片上传默认走「**预签名直传 R2**」：浏览器先用管理员凭证向服务端换取一个限时 PUT URL，再直接 `PUT` 字节到 R2，**不经过后端 Worker**（更快、省流量、带真实进度）。该直传会在请求里带 `Content-Type: image/png` 等头，触发浏览器**跨域预检（OPTIONS）**，因此 **R2 桶必须允许来自前端域名的跨域 PUT**，否则浏览器拦截请求、前端报「网络错误，上传失败」。
+
+> [!NOTE]
+> **不配置 CORS 也能用**：前端在直传失败时会自动回退到「Worker 代理上传」（服务端直传 R2，不依赖 CORS），功能不受影响，只是少了直传的性能优势。配置 CORS 后则走高效直传通道。
+
+**方式一：Cloudflare 控制台（推荐新手）**
+
+R2 桶详情页 > `设置` > `CORS` > `添加 CORS 策略`，填入：
+
+| 字段 | 值 |
+|------|----|
+| 允许的来源（Allowed Origins） | 你的前端地址，如 `https://rin-6qe.pages.dev` 及自定义域名 `https://你的域名`，可加多条 |
+| 允许的方法（Allowed Methods） | `GET`、`PUT`、`POST`、`HEAD`、`OPTIONS` |
+| 允许的请求头（Allowed Headers） | `content-type`、`*` |
+| 暴露的响应头（Expose Headers） | `ETag` |
+| 最长缓存时间（Max Age） | `3600` |
+
+**方式二：Wrangler 命令行（批量/复用）**
+
+本地新建 `cors.json`（把 `<前端地址>` 换成你实际的前端 Pages 域名，多个用逗号分隔）：
+
+```json
+{
+  "AllowedOrigins": ["https://rin-6qe.pages.dev", "https://<你的自定义域名>"],
+  "AllowedMethods": ["GET", "PUT", "POST", "HEAD", "OPTIONS"],
+  "AllowedHeaders": ["content-type", "*"],
+  "ExposeHeaders": ["ETag"],
+  "MaxAgeSeconds": 3600
+}
+```
+
+然后执行（需 `wrangler login`，桶名称即 `S3_BUCKET` 的值）：
+
+```bash
+wrangler r2 bucket cors put <桶名称> --file cors.json
+```
+
+配置后重新上传一次图片验证：浏览器开发者工具 Network 里应能看到对 R2 域名的 `PUT` 请求且状态 `200`；若仍失败，优先检查 Allowed Origins 是否包含了你实际访问站点所用的那个域名（Pages 默认域名与自定义域名都要加）。
+
 # 操作视频
 由于时间原因未对以下视频做剪辑与后期说明处理，如果对于部署流程不了解或疑惑可参考视频步骤
 
