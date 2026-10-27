@@ -12,11 +12,8 @@ crons = ["*/20 * * * *"]
 FRONTEND_URL = "http://localhost:5173"
 S3_FOLDER = "images/"
 S3_CACHE_FOLDER="cache/"
-S3_REGION = "auto"
 S3_ENDPOINT = "<YourS3Endpoint>"
 S3_ACCESS_HOST = "<YourS3AccessHost>"
-S3_BUCKET = "<YourS3BucketName>"
-S3_FORCE_PATH_STYLE = "false"
 WEBHOOK_URL = "https://<YourWebhookURL>"
 RSS_TITLE = "Rin Development Environment"
 RSS_DESCRIPTION = "Development Environment"
@@ -44,3 +41,9 @@ CDN_HOST = ""
 binding = "DB"
 database_name = "rin"
 database_id = "YourDatabaseID"
+
+# R2 对象存储通过 Worker 绑定访问，无需任何 S3 凭证（Access Key / Secret）。
+# bucket_name 改为你的实际桶名（如 rin-storage）。
+[[r2_buckets]]
+binding = "RIN_BUCKET"
+bucket_name = "rin-storage"

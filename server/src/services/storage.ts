@@ -1,10 +1,8 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import Elysia, { t } from "elysia";
 import path from "node:path";
 import type { Env } from "../db/db";
 import { setup } from "../setup";
 import { getEnv } from "../utils/di";
-import { createS3Client } from "../utils/s3";
 import { accessHost as cdnAccessHost } from "../utils/cdn";
 
 function buf2hex(buffer: ArrayBuffer) {
@@ -42,33 +40,19 @@ function extFromMagic(buf: ArrayBuffer): string {
 
 export function StorageService() {
     const env: Env = getEnv();
-    const endpoint = env.S3_ENDPOINT;
-    const bucket = env.S3_BUCKET;
     const folder = env.S3_FOLDER || '';
-    const accessKeyId = env.S3_ACCESS_KEY_ID;
-    const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-    const s3 = createS3Client();
-
-    // 配置缺失集中校验：缺任一 S3 变量直接 500 + 具体变量名。
-    function configError(): string | null {
-        if (!endpoint) return 'S3_ENDPOINT is not defined';
-        if (!accessKeyId) return 'S3_ACCESS_KEY_ID is not defined';
-        if (!secretAccessKey) return 'S3_SECRET_ACCESS_KEY is not defined';
-        if (!bucket) return 'S3_BUCKET is not defined';
-        return null;
-    }
 
     return new Elysia({ aot: false })
         .use(setup())
         .group('/storage', (group) =>
             group
-                // 唯一上传通道：字节经 Worker 代理转发到 R2，不依赖 R2 桶的 CORS 配置，
-                // 行为确定、部署简单。保留 SHA-1 内容去重（相同图片复用已有对象）与 admin 守卫。
+                // 唯一上传通道：字节经 Worker 代理转发到 R2 绑定，不依赖 R2 桶 CORS 配置，
+                // 行为确定、部署简单。R2 通过 Worker 绑定（env.RIN_BUCKET）访问，无需任何 S3 凭证。
+                // 保留 SHA-1 内容去重（相同图片复用已有对象）与 admin 守卫。
                 .post('/', async ({ admin, set, body: { key, file } }) => {
-                    const ce = configError();
-                    if (ce) {
+                    if (!env.RIN_BUCKET) {
                         set.status = 500;
-                        return ce;
+                        return 'RIN_BUCKET binding is not configured';
                     }
                     if (!admin) {
                         set.status = 403;
@@ -98,12 +82,11 @@ export function StorageService() {
                     const hash = buf2hex(hashArray);
                     const hashkey = path.join(folder, hash + "." + suffix);
                     try {
-                        // 传 Uint8Array 而非 File/Blob：长度可知，SDK 不会退化为
-                        // STREAMING-UNSIGNED-PAYLOAD-TRAILER（R2 不支持，会返回 400）。
-                        await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: new Uint8Array(buf), ContentType: contentType }));
+                        // 传 Uint8Array 而非 File/Blob：长度可知，避免 SDK 流式负载退化。
+                        await env.RIN_BUCKET.put(hashkey, new Uint8Array(buf), { httpMetadata: { contentType } });
                         return `${await cdnAccessHost(env)}/${hashkey}`;
                     } catch (e: any) {
-                        // 透出真实 S3 错误便于排查（自托管管理端，暴露 S3 文案无碍）。
+                        // 透出真实错误便于排查（自托管管理端，暴露 R2 文案无碍）。
                         // 不加「上传失败」前缀：前端 errorMessage 会统一包 upload.failed$message。
                         const detail = (e?.message || String(e)).slice(0, 300);
                         console.error('storage upload failed', detail);

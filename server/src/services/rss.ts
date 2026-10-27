@@ -1,4 +1,3 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import Elysia from "elysia";
@@ -14,7 +13,6 @@ import * as schema from "../db/schema";
 import { feeds, users } from "../db/schema";
 import { getEnv } from "../utils/di";
 import { extractImage } from "../utils/image";
-import { createS3Client } from "../utils/s3";
 import { accessHost as cdnAccessHost, cdnHost } from "../utils/cdn";
 
 export function RSSService() {
@@ -120,13 +118,11 @@ export async function rssCrontab(env: Env) {
     }
     // save rss.xml to s3
     console.log('save rss.xml to s3');
-    const bucket = env.S3_BUCKET;
     const folder = env.S3_CACHE_FOLDER || 'cache/';
-    const s3 = createS3Client();
     async function save(name: string, data: string) {
         const hashkey = path.join(folder, name);
         try {
-            await s3.send(new PutObjectCommand({ Bucket: bucket, Key: hashkey, Body: data }))
+            await env.RIN_BUCKET.put(hashkey, data)
         } catch (e: any) {
             console.error(e.message)
         }

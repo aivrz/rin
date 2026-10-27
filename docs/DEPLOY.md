@@ -29,20 +29,12 @@ SEO_BASE_URL=<SEO 基础地址，用于 SEO 索引，默认为 FRONTEND_URL>
 SEO_CONTAINS_KEY=<SEO 索引时只索引以 SEO_BASE_URL 开头或包含SEO_CONTAINS_KEY 关键字的链接，默认为空>
 S3_FOLDER=<S3 图片资源存储的文件夹，默认为 'images/'>
 S3_CACHE_FOLDER=<S3 缓存文件夹（用于 SEO、高频请求缓存），默认为 'cache/'>
-S3_BUCKET=<S3 存储桶名称>
-S3_REGION=<S3 存储桶所在区域，如使用 Cloudflare R2 填写 auto 即可>
-S3_ENDPOINT=<S3 存储桶接入点地址>
+S3_ENDPOINT=<S3 存储桶接入点地址（仅作公共访问兜底，可留空）>
 S3_ACCESS_HOST=<S3 存储桶访问地址，末尾无'/'>
 ```
 
-同时添加以下加密环境变量（加密，添加到 Secrets）：
-
-```ini
-S3_ACCESS_KEY_ID=<你的S3AccessKeyID>
-S3_SECRET_ACCESS_KEY=<你的S3SecretAccessKey>
-```
-
-以上环境变量在之前的版本中是通过 Cloudflare 面板配置的，现在需要迁移到 GitHub 中配置，新版本的部署 GitHub Action 会自动其上传到 Cloudflare，之后就不再需要在 Cloudflare 面板中配置这些环境变量了
+> [!NOTE]
+> R2 对象存储现已通过 **Worker 绑定**访问（在 `wrangler.toml` 配置 `[[r2_buckets]]`，`binding = "RIN_BUCKET"`），**不再需要 S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY 等任何 S3 凭证**。只需把 R2 桶绑定到 Worker 即可（详见下文「创建 R2 桶」）。
 
 ## 其他文档
 
@@ -196,9 +188,7 @@ SEO_BASE_URL=<SEO 基础地址，用于 SEO 索引，默认为 FRONTEND_URL>
 SEO_CONTAINS_KEY=<SEO 索引时只索引以 SEO_BASE_URL 开头或包含SEO_CONTAINS_KEY 关键字的链接，默认为空>
 S3_FOLDER=<S3 图片资源存储的文件夹，默认为 'images/'>
 S3_CACHE_FOLDER=<S3 缓存文件夹（用于 SEO、高频请求缓存），默认为 'cache/'>
-S3_BUCKET=<S3 存储桶名称>
-S3_REGION=<S3 存储桶所在区域，如使用 Cloudflare R2 填写 auto 即可>
-S3_ENDPOINT=<S3 存储桶接入点地址>
+S3_ENDPOINT=<S3 存储桶接入点地址（仅作公共访问兜底，可留空）>
 S3_ACCESS_HOST=<S3 存储桶访问地址，末尾无'/'>
 ```
 
@@ -223,8 +213,6 @@ S3_ACCESS_HOST=<S3 存储桶访问地址，末尾无'/'>
 RIN_GITHUB_CLIENT_ID=<你的GithubClientID>
 RIN_GITHUB_CLIENT_SECRET=<你的GithubClientSecret>
 JWT_SECRET=<JWT 认证所需密钥，可为常规格式的任意密码>
-S3_ACCESS_KEY_ID=<你的S3AccessKeyID>
-S3_SECRET_ACCESS_KEY=<你的S3SecretAccessKey>
 ```
 
 ## 接入 GitHub OAuth
@@ -249,13 +237,16 @@ https://<你的后端地址>/user/github/callback
 Cloudflare 面板中点击 `R2` > `创建存储桶`，填写名称，选择距离自己近的位置：
 ![1000000665](https://github.com/openRin/Rin/assets/36541432/17c5ad7b-8a3a-49b2-845a-8d043484aa63)
 
-创建存储桶之后进入存储桶详情页 > `设置`，复制 S3 API 地址，去除末尾的存储桶名称后填入 `S3_ENDPOINT`，如：
+创建存储桶之后，把该桶**绑定到 Worker**（无需 S3 API 地址 / 凭证）：在 Cloudflare 面板 `Workers & Pages` > 你的 Worker > `设置` > `绑定` 中添加 `R2 桶绑定`，变量名填 `RIN_BUCKET`，桶填你的桶名（如 `rin-storage`）；或在 `wrangler.toml` 增加：
 
 ```ini
-S3_BUCKET=image # 桶名称
-S3_REGION=auto # 地区 auto 不用修改
-S3_ENDPOINT=https://8879900e5e1219fb745c9f69b086565a.r2.cloudflarestorage.com
+[[r2_buckets]]
+binding = "RIN_BUCKET"
+bucket_name = "rin-storage"
 ```
+
+> [!NOTE]
+> `S3_ENDPOINT` 仅作为图片公共访问地址的兜底（当 `S3_ACCESS_HOST` 为空时回退），如已配置 `S3_ACCESS_HOST` 可留空。
 
 然后在`公开访问`处绑定一个域名用于访问资源，绑定的域名对应于`S3_ACCESS_HOST`环境变量：
 
@@ -263,7 +254,7 @@ S3_ENDPOINT=https://8879900e5e1219fb745c9f69b086565a.r2.cloudflarestorage.com
 S3_ACCESS_HOST=https://image.xeu.life
 ```
 
-然后创建一个 API 令牌用于访问存储桶，可参考 https://developers.cloudflare.com/r2/api/s3/tokens/ ，这里不再赘述，拿到 ID 和 TOKEN 对应于`S3_ACCESS_KEY_ID` 和 `S3_SECRET_ACCESS_KEY` 变量，填入 Workers 的环境变量中
+R2 现已通过 Worker 绑定访问，**无需创建任何 API 令牌**，上一步绑定完成后即可使用。
 
 至此后端就已经部署完成了，记得将前端的 API_URL 修改为后端的地址，与此同时，如果你需要 WebHook 通知的话，还可在后端配置环境变量`WEBHOOK_URL`为你的 Webhook 地址，在新增评论时会像目标 URL 发送一条 POST 消息，消息格式为：
 

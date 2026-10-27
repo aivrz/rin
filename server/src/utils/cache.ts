@@ -1,10 +1,8 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import path from "path";
 import Container, { Service } from "typedi";
 import type { DB } from "../_worker";
 import type { Env } from "../db/db";
 import { getDB, getEnv } from "./di";
-import { createS3Client } from "./s3";
 
 // Cache Utils for storing data in memory and persisting to S3
 // DO NOT USE THIS TO STORE SENSITIVE DATA
@@ -18,7 +16,6 @@ export class CacheImpl {
     cacheFolder: string;
     type: string;
     loaded: boolean = false;
-    s3 = createS3Client();
 
     constructor(type: string = "cache") {
         this.type = type;
@@ -55,24 +52,20 @@ export class CacheImpl {
     async load() {
         const key = this.objectKey();
         try {
-            const res: any = await this.s3.send(new GetObjectCommand({
-                Bucket: this.env.S3_BUCKET,
-                Key: key,
-            }));
-            const text = await new Response(res.Body).text();
-            this.absorb(text ? JSON.parse(text) : null);
-            this.loaded = true;
-            console.log('Cache load ok(s3)', key);
-            return;
-        } catch (e: any) {
-            // 对象不存在 = 首次部署的正常空状态，必须置 loaded，否则后续保存会被写入保护一直拦下
-            const status = e?.$metadata?.httpStatusCode;
-            if (status === 404 || e?.name === 'NoSuchKey' || e?.name === 'NotFound') {
+            const obj = await this.env.RIN_BUCKET.get(key);
+            if (!obj) {
                 this.loaded = true;
-                console.log('Cache load empty(s3)', key);
+                console.log('Cache load empty', key);
                 return;
             }
-            console.warn('Cache load s3 failed, fallback to public url', key, e?.message);
+            const text = await obj.text();
+            this.absorb(text ? JSON.parse(text) : null);
+            this.loaded = true;
+            console.log('Cache load ok', key);
+            return;
+        } catch (e: any) {
+            // R2 绑定读取异常（网络/权限）时回退到公共地址，保证可用性
+            console.warn('Cache load r2 failed, fallback to public url', key, e?.message);
         }
         try {
             const response = await fetch(new Request(this.cacheUrl));
@@ -168,11 +161,7 @@ export class CacheImpl {
             return false;
         }
         try {
-            await this.s3.send(new PutObjectCommand({
-                Bucket: this.env.S3_BUCKET,
-                Key: cacheKey,
-                Body: JSON.stringify(Object.fromEntries(this.cache))
-            }));
+            await this.env.RIN_BUCKET.put(cacheKey, JSON.stringify(Object.fromEntries(this.cache)));
             console.log('Cache saved', cacheKey);
             return true;
         } catch (e: any) {

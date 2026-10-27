@@ -28,13 +28,14 @@
 > [!NOTE]
 > 以下变量在 Cloudflare Workers 中保持不加密即可
 
+> [!IMPORTANT]
+> R2 对象存储现已通过 **Worker 绑定**访问（在 `wrangler.toml` 增加 `[[r2_buckets]]`，`binding = "RIN_BUCKET"`），**不再需要任何 S3 凭证**（Access Key / Secret）。`bucket_name` 填你的实际桶名（如 `rin-storage`）。
+
 | 名称              | 是否必须 | 描述                                      | 默认值         | 示例值                                                             |
 |-----------------|------|-----------------------------------------|-------------|-----------------------------------------------------------------|
 | FRONTEND_URL    | 暂时必须 | 评论通知 Webhook 时包含评论文章链接时所需，可留空           | 无           | https://xeu.life                                                |
 | S3_FOLDER       | 是    | 上传保存图片时资源存放的文件路径                        | 无           | images/                                                         |
-| S3_BUCKET       | 是    | S3 存储桶名称                                | 无           | images                                                          |
-| S3_REGION       | 是    | S3 存储桶所在区域，如使用 Cloudflare R2 填写 auto 即可 | 无           | auto                                                            |
-| S3_ENDPOINT     | 是    | S3 存储桶接入点地址                             | 无           | https://1234567890abcdef1234567890abcd.r2.cloudflarestorage.com |
+| S3_ENDPOINT     | 否    | 图片公共访问地址兜底（S3_ACCESS_HOST 为空时回退，本地开发可用）   | S3_ACCESS_HOST | https://1234567890abcdef1234567890abcd.r2.cloudflarestorage.com |
 | WEBHOOK_URL     | 否    | 新增评论时发送 Webhook 通知目标地址                  | 无           | https://webhook.example.com/webhook                             |
 | S3_ACCESS_HOST  | 否    | S3 存储桶访问地址                              | S3_ENDPOINT | https://image.xeu.life                                          |
 | S3_CACHE_FOLDER | 否    | S3 缓存文件夹（用于 SEO、高频请求缓存）                 | cache/      | cache/                                                          |
@@ -50,5 +51,3 @@
 | RIN_GITHUB_CLIENT_ID     | Github OAuth 的客户端 ID                                        | Ux66poMrKi1k11M1Q1b2                                             |
 | RIN_GITHUB_CLIENT_SECRET | Github OAuth 的客户端密钥                                         | 1234567890abcdef1234567890abcdef12345678                         |
 | JWT_SECRET               | JWT 认证所需密钥，可为常规格式的任意密码                                      | J0sT%Ch@nge#Me1                                                  |
-| S3_ACCESS_KEY_ID         | S3 存储桶访问所需的 KEY ID，使用 Cloudflare R2 时为拥有 R2 编辑权限的 API 令牌 ID | 1234567890abcdef1234567890abcd                                   |
-| S3_SECRET_ACCESS_KEY     | S3 存储桶访问所需的 Secret，使用 Cloudflare R2 时为拥有 R2 编辑权限的 API 令牌    | 1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef |
