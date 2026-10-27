@@ -83,7 +83,11 @@ export function StorageService() {
                     const hashkey = path.join(folder, hash + "." + suffix);
                     try {
                         // 传 Uint8Array 而非 File/Blob：长度可知，避免 SDK 流式负载退化。
-                        await env.RIN_BUCKET.put(hashkey, new Uint8Array(buf), { httpMetadata: { contentType } });
+                        // hashkey 为内容 SHA-1 哈希，内容不变则 URL 不变 → 可安全设 immutable 长缓存，
+                        // 让图片在 Cloudflare 边缘/CDN 长期命中，省 R2 回源与流量。
+                        await env.RIN_BUCKET.put(hashkey, new Uint8Array(buf), {
+                            httpMetadata: { contentType, cacheControl: 'public, max-age=31536000, immutable' }
+                        });
                         return `${await cdnAccessHost(env)}/${hashkey}`;
                     } catch (e: any) {
                         // 透出真实错误便于排查（自托管管理端，暴露 R2 文案无碍）。

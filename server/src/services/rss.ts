@@ -122,7 +122,14 @@ export async function rssCrontab(env: Env) {
     async function save(name: string, data: string) {
         const hashkey = path.join(folder, name);
         try {
-            await env.RIN_BUCKET.put(hashkey, data)
+            await env.RIN_BUCKET.put(hashkey, data, {
+                httpMetadata: {
+                    contentType: 'application/rss+xml; charset=utf-8',
+                    // RSS 每 20 分钟由 cron 重建并覆盖同 key，故缓存不宜过长；与 /sub 路由的
+                    // Cache-Control 对齐，让经 CDN/公共地址直接访问时也能边缘命中且不长期陈旧。
+                    cacheControl: 'public, max-age=300, s-maxage=600, stale-while-revalidate=600'
+                }
+            })
         } catch (e: any) {
             console.error(e.message)
         }

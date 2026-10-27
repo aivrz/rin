@@ -72,6 +72,12 @@ export const app = () => new Elysia({ aot: false })
         // 若命中边缘缓存，前台会读到不含 music 等新值的旧副本（表现为「保存成功但刷新后配置丢失」）。
         // 这里显式下发 no-store，同时切断 Cloudflare 边缘缓存与浏览器 max-age 缓存；
         // 仅排除 /config，其余公共数据接口（feed/hashtags/friends）的边缘缓存保持不变。
+        // 统一安全响应头：JSON API 重点是防点击劫持与 MIME 嗅探（脚本类策略对 JSON 无意义）
+        set.headers['X-Content-Type-Options'] = 'nosniff';
+        set.headers['X-Frame-Options'] = 'SAMEORIGIN';
+        set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+        set.headers['Content-Security-Policy'] = "default-src 'none'; frame-ancestors 'self'";
+        set.headers['Strict-Transport-Security'] = 'max-age=31536000';
         const pathname = new URL(request.url).pathname;
         if (pathname === '/config' || pathname.startsWith('/config/')) {
             set.headers['Cache-Control'] = 'no-store';
