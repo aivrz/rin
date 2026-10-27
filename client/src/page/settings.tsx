@@ -10,7 +10,7 @@ import { loadClientConfig, loadServerConfig, setClientConfigValue, setServerConf
 import { refreshMusic } from "../state/music.ts";
 import { headersWithAuth } from "../utils/auth.ts";
 import { errorMessage } from "../utils/errorMessage";
-import { uploadImageToR2 } from "../utils/upload";
+import { useImageUpload } from "../hooks/useImageUpload";
 import '../utils/thumb.css';
 
 /** 保存成功后推送到全局 store：立即生效，无需 F5 */
@@ -385,10 +385,10 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
     const config = type === 'client' ? clientConfig : serverConfig;
     const value = config?.get<string>(configKey) ?? "";
     const [loading, setLoading] = useState(false);
-    const [uploading, setUploading] = useState(false);
     const [manualUrl, setManualUrl] = useState("");
     const fileRef = useRef<HTMLInputElement>(null);
     const { showAlert, AlertUI } = useAlert();
+    const { uploading, upload } = useImageUpload(showAlert);
     const { t } = useTranslation();
 
     function saveConfig(url: string) {
@@ -413,10 +413,7 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
     function handleFile(e: ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
-        setUploading(true);
-        uploadImageToR2(file)
-            .then((url) => { saveConfig(url); setUploading(false); })
-            .catch((err: any) => { showAlert(err?.message || t('upload.failed')); setUploading(false); });
+        upload(file).then((url) => { if (url) saveConfig(url); });
         e.target.value = "";
     }
 

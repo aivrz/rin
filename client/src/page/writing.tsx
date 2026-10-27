@@ -16,7 +16,7 @@ import { Checkbox, Input } from "../components/input";
 import { Markdown } from "../components/markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
-import { uploadImageToR2 } from "../utils/upload";
+import { useImageUpload } from "../hooks/useImageUpload";
 import { Cache, useCache } from '../utils/cache';
 import { siteName } from "../utils/constants";
 import { useColorMode } from "../utils/darkModeUtils";
@@ -128,14 +128,6 @@ async function update({
     });
   }
 }
-
-function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: ShowAlertType) {
-  uploadImageToR2(file)
-    .then((url) => onSuccess(url))
-    .catch((e: any) => showAlert(e?.message || i18n.t("upload.failed")));
-}
-
-
 
 // 后台文章管理列表：复用 FeedService 的列表/置顶/删除接口
 function ManageList() {
@@ -271,7 +263,6 @@ export function WritingPage({ id }: { id?: number }) {
   const [content, setContent] = cache.useCache("content", "");
   const [createdAt, setCreatedAt] = useState<Date | undefined>(new Date());
   const [preview, setPreview] = useCache<'edit' | 'preview' | 'comparison'>("preview", 'edit');
-  const [uploading, setUploading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [imageLink, setImageLink] = useState("")
@@ -282,6 +273,7 @@ export function WritingPage({ id }: { id?: number }) {
     savedTimer.current = setTimeout(() => setSavedAt(new Date()), 600)
   }
   const { showAlert, AlertUI } = useAlert()
+  const { uploading, upload } = useImageUpload(showAlert);
   function publishButton() {
     if (publishing) return;
     const tagsplit =
@@ -342,17 +334,15 @@ export function WritingPage({ id }: { id?: number }) {
       const editor = editorRef.current;
       if (!editor) return;
       editor.trigger(undefined, "undo", undefined);
-      setUploading(true)
       const myfile = clipboardData.files[0] as File;
-      uploadImage(myfile, (url) => {
-        const selection = editor.getSelection();
-        if (!selection) return;
-        editor.executeEdits(undefined, [{
-          range: selection,
-          text: `![${myfile.name}](${url})\n`,
-        }]);
-        setUploading(false)
-      }, showAlert);
+      const url = await upload(myfile);
+      if (!url) return;
+      const selection = editor.getSelection();
+      if (!selection) return;
+      editor.executeEdits(undefined, [{
+        range: selection,
+        text: `![${myfile.name}](${url})\n`,
+      }]);
     }
   };
 
@@ -370,30 +360,23 @@ export function WritingPage({ id }: { id?: number }) {
   }
 
   function UploadImageButton() {
-    const { showAlert, AlertUI } = useAlert();
+    const { AlertUI } = useAlert();
     const uploadRef = useRef<HTMLInputElement>(null);
-    const t = i18n.t
-    const upChange = (event: any) => {
+    const upChange = async (event: any) => {
       for (let i = 0; i < event.currentTarget.files.length; i++) {
         const file = event.currentTarget.files[i]; ///获得input的第一个图片
-        if (file.size > 5 * 1024000) {
-          showAlert(t("upload.failed$size", { size: 5 }))
-          uploadRef.current!.value = "";
-        } else {
-          const editor = editorRef.current;
-          if (!editor) return;
-          const selection = editor.getSelection();
-          if (!selection) return;
-          setUploading(true)
-          uploadImage(file, (url) => {
-            setUploading(false)
-            editor.executeEdits(undefined, [{
-              range: selection,
-              text: `![${file.name}](${url})\n`,
-            }]);
-          }, showAlert);
-        }
+        const url = await upload(file);
+        if (!url) { uploadRef.current!.value = ""; return; }
+        const editor = editorRef.current;
+        if (!editor) return;
+        const selection = editor.getSelection();
+        if (!selection) continue;
+        editor.executeEdits(undefined, [{
+          range: selection,
+          text: `![${file.name}](${url})\n`,
+        }]);
       }
+      uploadRef.current!.value = "";
     };
     return (
       <button onClick={() => uploadRef.current?.click()}>
@@ -571,23 +554,21 @@ export function WritingPage({ id }: { id?: number }) {
                     className={"relative rounded-xl transition-colors " + (dragOver ? "ring-2 ring-[var(--theme)] bg-secondary/40" : "ring-1 ring-transparent")}
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       e.preventDefault();
                       setDragOver(false);
                       const editor = editorRef.current;
                       if (!editor) return;
                       for (let i = 0; i < e.dataTransfer.files.length; i++) {
-                        const selection = editor.getSelection();
-                        if (!selection) return;
                         const file = e.dataTransfer.files[i];
-                        setUploading(true)
-                        uploadImage(file, (url) => {
-                          setUploading(false)
-                          editor.executeEdits(undefined, [{
-                            range: selection,
-                            text: `![${file.name}](${url})\n`,
-                          }]);
-                        }, showAlert);
+                        const url = await upload(file);
+                        if (!url) continue;
+                        const selection = editor.getSelection();
+                        if (!selection) continue;
+                        editor.executeEdits(undefined, [{
+                          range: selection,
+                          text: `![${file.name}](${url})\n`,
+                        }]);
                       }
                     }}
                     onPaste={handlePaste}

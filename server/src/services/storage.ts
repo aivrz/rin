@@ -1,5 +1,4 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import Elysia, { t } from "elysia";
 import path from "node:path";
 import type { Env } from "../db/db";
@@ -63,8 +62,8 @@ export function StorageService() {
         .use(setup())
         .group('/storage', (group) =>
             group
-                // 代理上传（兜底通道）：字节经 Worker 转发到 R2，不依赖 R2 桶的 CORS 配置，
-                // 当预签名直传因 CORS/网络失败时由前端回退到此。保留 SHA-1 去重与 admin 守卫。
+                // 唯一上传通道：字节经 Worker 代理转发到 R2，不依赖 R2 桶的 CORS 配置，
+                // 行为确定、部署简单。保留 SHA-1 内容去重（相同图片复用已有对象）与 admin 守卫。
                 .post('/', async ({ admin, set, body: { key, file } }) => {
                     const ce = configError();
                     if (ce) {
@@ -110,50 +109,6 @@ export function StorageService() {
                     body: t.Object({
                         key: t.String(),
                         file: t.File()
-                    })
-                })
-                // 预签名直传（高效通道）：Worker 只签发一个限时 PUT URL（不接触文件字节），
-                // 客户端直传 R2，省去代理上传的双倍流量与 CPU。key 由客户端 SHA-1 决定（去重），
-                // 正则校验防路径穿越。需 R2 桶配置允许本站点的 CORS（PUT + Content-Type）才会生效，
-                // 否则前端回退到上面的代理通道。
-                .post('/sign', async ({ admin, set, body: { hash, ext, type } }) => {
-                    const ce = configError();
-                    if (ce) {
-                        set.status = 500;
-                        return ce;
-                    }
-                    if (!admin) {
-                        set.status = 403;
-                        return 'Permission denied';
-                    }
-                    if (!/^[a-f0-9]{40}$/.test(hash)) {
-                        set.status = 400;
-                        return 'bad hash';
-                    }
-                    if (!IMAGE_EXT[ext]) {
-                        set.status = 400;
-                        return 'bad ext';
-                    }
-                    if (IMAGE_EXT[ext] !== type) {
-                        set.status = 400;
-                        return 'bad type';
-                    }
-                    const key = path.join(folder, `${hash}.${ext}`);
-                    try {
-                        const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: type });
-                        const uploadUrl = await getSignedUrl(s3, cmd, { expiresIn: 600 });
-                        const publicUrl = `${await cdnAccessHost(env)}/${key}`;
-                        return { uploadUrl, publicUrl, key };
-                    } catch (e: any) {
-                        console.error('storage sign failed', e?.message ?? e);
-                        set.status = 400;
-                        return '生成上传凭证失败，请稍后重试';
-                    }
-                }, {
-                    body: t.Object({
-                        hash: t.String(),
-                        ext: t.String(),
-                        type: t.String()
                     })
                 })
         );

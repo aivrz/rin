@@ -6,7 +6,7 @@ import { errorMessage } from "./errorMessage";
 // 客户端硬上限与设置页/编辑器保持一致（5MB）；服务端另有 10MB 兜底。
 const MAX_SIZE = 5 * 1024 * 1024;
 
-// 扩展名 → 内容类型（与后端 IMAGE_EXT 对应，保证 sign 请求 type 与 ext 严格一致）
+// 扩展名 → 内容类型（与后端 IMAGE_EXT 对应，提供即时校验反馈）
 const EXT_TYPE: Record<string, string> = {
     png: "image/png",
     jpg: "image/jpeg",
@@ -18,48 +18,17 @@ const EXT_TYPE: Record<string, string> = {
     avif: "image/avif",
 };
 
-function buf2hex(buffer: ArrayBuffer): string {
-    return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, "0")).join("");
-}
-
-async function sha1Hex(buf: ArrayBuffer): Promise<string> {
-    const h = await crypto.subtle.digest("SHA-1", buf);
-    return buf2hex(h);
-}
-
 function extFromName(name: string): string {
     const m = name.match(/\.([a-zA-Z0-9]+)$/);
     return m ? m[1].toLowerCase() : "";
 }
 
-// XHR PUT 直传 R2：fetch 的 upload 进度在部分环境不可靠，XHR 可拿到真实进度且可中断。
-function putDirect(uploadUrl: string, file: File, type: string, onProgress?: (p: number) => void): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", type);
-        if (onProgress) {
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(e.loaded / e.total);
-            };
-        }
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`上传失败 (${xhr.status})`));
-        };
-        xhr.onerror = () => reject(new Error("网络错误，上传失败"));
-        xhr.send(file);
-    });
-}
-
 /**
- * 统一图片上传入口：writing 与 settings 共用。
- * 通道选择：优先「预签名直传 R2」（字节不经 Worker，省流量/CPU，带真实进度）；
- * 当直传失败（多为 R2 桶未配置本站 CORS、或网络/签名问题）时，**回退到 Worker 代理上传**
- * （服务端直传 R2，不依赖 CORS），保证上传在任何部署环境下都可用。
- * 异常以 Error(message) 抛出，由调用方用 showAlert 统一展示。
+ * 统一图片上传入口（单一代理通道）：writing 与 settings 共用。
+ * 流程：客户端即时校验（大小/类型/扩展名）→ POST /storage 由 Worker 转发字节到 R2。
+ * 不依赖 R2 桶 CORS，行为确定、部署简单。异常以 Error(message) 抛出，由调用方统一展示。
  */
-export async function uploadImageToR2(file: File, onProgress?: (p: number) => void): Promise<string> {
+export async function uploadImageToR2(file: File): Promise<string> {
     const t = i18n.t;
     if (!file) throw new Error(t("upload.empty"));
     if (file.size > MAX_SIZE) throw new Error(t("upload.failed$size", { size: 5 }));
@@ -69,24 +38,8 @@ export async function uploadImageToR2(file: File, onProgress?: (p: number) => vo
     let ext = extFromName(file.name);
     if (!EXT_TYPE[ext]) ext = Object.keys(EXT_TYPE).find(k => EXT_TYPE[k] === declared) || "";
     if (!ext || !EXT_TYPE[ext]) throw new Error(t("upload.failed$type"));
-    const type = EXT_TYPE[ext];
 
-    // 1) 预签名直传优先
     try {
-        const buf = await file.arrayBuffer();
-        const hash = await sha1Hex(buf);
-        const { data, error } = await client.storage.sign.post(
-            { hash, ext, type },
-            { headers: headersWithAuth() }
-        );
-        if (error) throw new Error(t("upload.failed$message", { message: errorMessage(error) }));
-        // data 可能是错误字符串（配置缺失/403/400 文案）或成功对象，需先排除字符串分支
-        if (!data || typeof data === "string" || !data.uploadUrl) throw new Error(t("upload.empty"));
-        await putDirect(data.uploadUrl, file, type, onProgress);
-        return data.publicUrl;
-    } catch (directErr) {
-        // 2) 回退：Worker 代理上传（免 R2 CORS）
-        console.warn('upload direct failed, fallback to proxy', directErr);
         const { data, error } = await client.storage.index.post(
             { key: file.name, file },
             { headers: headersWithAuth() }
@@ -94,5 +47,12 @@ export async function uploadImageToR2(file: File, onProgress?: (p: number) => vo
         if (error) throw new Error(t("upload.failed$message", { message: errorMessage(error) }));
         if (!data || typeof data !== "string" || !data.trim()) throw new Error(t("upload.empty"));
         return data.trim();
+    } catch (e: any) {
+        // 网络层失败（fetch 直接 reject，如断网/后端不可达）：Eden 不会给出 error 对象，
+        // 这里给出可操作的网络提示，而非把底层 "Failed to fetch" 暴露给用户。
+        if (!e?.message || e.message === "Failed to fetch" || e.message.toLowerCase().includes("fetch")) {
+            throw new Error(t("upload.network"));
+        }
+        throw e;
     }
 }

@@ -236,6 +236,7 @@
     "empty": "Upload succeeded but no image URL returned, please retry",
     "failed$size": "Upload failed, file size cannot exceed {{size}} MB",
     "failed$type": "Upload failed, only image files are supported",
+    "network": "Network error, please check your connection and retry",
     "title": "Upload"
   },
   "uploading": "Uploading...",
