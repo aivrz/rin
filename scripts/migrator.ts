@@ -91,7 +91,9 @@ class_name = "RateLimiter"
 
 [[migrations]]
 tag = "v1-do-queue"
-new_classes = ["RateLimiter"]
+# 免费套餐必须用 new_sqlite_classes（SQLite 后端）创建 DO 命名空间；
+# 旧的 new_classes（KV 后端）仅付费套餐可用，否则部署报 code 10097。
+new_sqlite_classes = ["RateLimiter"]
 
 [placement]
 mode = "smart"
