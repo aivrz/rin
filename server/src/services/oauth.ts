@@ -124,7 +124,11 @@ export function OAuthService() {
             const { clientId, clientSecret } = await getCreds(provider, envObj);
             if (!clientId || !clientSecret) return 'Provider not configured';
             const origin = new URL(request.url).origin;
-            const redirectUri = `${origin}/user/${provider}/callback`;
+            // 同源部署时请求经主域 /api/* 路由进入（_worker 已剥前缀并注入 x-api-prefix）。
+            // 回调地址须还原 /api 前缀，才能落回 Worker 路由并与平台登记的回调一致；
+            // 经旧子域进入时该头为空，行为不变。
+            const apiPrefix = request.headers.get('x-api-prefix') || '';
+            const redirectUri = `${origin}${apiPrefix}/user/${provider}/callback`;
             const state = randomHex(8);
             const refererOrigin = headers.referer ? new URL(headers.referer).origin : origin;
             // 存原始 origin（与 user.ts 的 GitHub 流程保持一致），不要在 cookie 里编码，
@@ -144,7 +148,11 @@ export function OAuthService() {
             const envObj: any = env;
             const { clientId, clientSecret } = await getCreds(provider, envObj);
             const origin = new URL(request.url).origin;
-            const redirectUri = `${origin}/user/${provider}/callback`;
+            // 同源部署时请求经主域 /api/* 路由进入（_worker 已剥前缀并注入 x-api-prefix）。
+            // 回调地址须还原 /api 前缀，才能落回 Worker 路由并与平台登记的回调一致；
+            // 经旧子域进入时该头为空，行为不变。
+            const apiPrefix = request.headers.get('x-api-prefix') || '';
+            const redirectUri = `${origin}${apiPrefix}/user/${provider}/callback`;
             let profile: OAuthProfile;
             try {
                 if (provider === 'qq') profile = await exchangeQQ(query.code, clientId, clientSecret, redirectUri);

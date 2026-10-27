@@ -36,12 +36,16 @@ function initRuntime(env: Env, ctx: ExecutionContext) {
 
 // 同源改造支持（P2-5）：若请求走主域 /api/* 路由，剥离前缀后再交给 Elysia
 // （Elysia 路由是 /feed 等，不带 /api）。无 /api 前缀时原样处理（独立子域部署不变）。
+// 剥前缀的同时注入 x-api-prefix 头：剥过后 handler 里的 request.url 已看不到 /api，
+// 而 OAuth 回调地址等需要还原前缀才能落回 /api/* 路由。
 function stripApiPrefix(request: Request): Request {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return request;
     const nu = new URL(request.url);
     nu.pathname = url.pathname.slice(4); // 去掉 '/api'
-    return new Request(nu, request);
+    const headers = new Headers(request.headers);
+    headers.set('x-api-prefix', '/api');
+    return new Request(nu, { method: request.method, headers, body: request.body, redirect: request.redirect });
 }
 
 export default {
