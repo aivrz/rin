@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { setCookie } from "typescript-cookie";
 import { useServerConfig } from "../state/config";
-import { endpoint } from "../main";
+import { client, endpoint } from "../main";
+import { headersWithAuth } from "../utils/auth";
 
 // 关注公众号扫码登录面板（erphp-weixin-scan 整合前端部分）。
 // 流程：展示关注二维码 → 用户关注并回复“登录”获取 6 位验证码 → 输入验证码 → 轮询 /ews/login。
@@ -51,7 +52,14 @@ export function ScanPanel() {
                     if (d.token) setCookie('token', d.token, { expires: 30, path: '/' });
                     // token 写入前端域名后通知 App 刷新 profile（随后整页刷新也会再次拉取）
                     window.dispatchEvent(new Event('rin:login'));
-                    setTimeout(() => window.location.reload(), 800);
+                    // 管理员登录后直接进入后台设置页；普通用户仍停留在当前页刷新
+                    client.user.profile.get({ headers: headersWithAuth() }).then(({ data }) => {
+                        if (data && typeof data !== 'string' && data.permission) {
+                            window.location.assign('/settings');
+                        } else {
+                            window.location.reload();
+                        }
+                    }).catch(() => window.location.reload());
                 } else if (attempts > 30) {
                     if (timerRef.current) clearInterval(timerRef.current);
                     setPolling(false);

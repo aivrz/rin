@@ -98,7 +98,7 @@ export function Settings() {
                     <ItemInput title="公众号扫码 AppID" description="当前版本未使用（消息回调走明文模式，签名校验仅需 Token），可留空" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
                     <ItemInput title="公众号扫码 AppSecret" description="当前版本未使用，可留空" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
                     <ItemInput title="公众号扫码 Token" description={`微信公众平台「开发 → 基本配置 → 服务器配置」需填两项：① 本处 Token（需与之一致）；②「服务器地址(URL)」填你 rin 后端 API / Worker 实际部署域名下的 /wechat/callback（例如 https://rinserver.100125.xyz/wechat/callback）。注意：本提示里的 ${origin} 是按你当前浏览地址生成的——若从 www 等别名域名进入后台，会得到错误的 www 域名，请手动改成 Worker 真实域名再填。务必选「明文模式」，不可选安全/兼容模式，否则消息体无法解析。`} type="server" configKey="ews_token" configKeyTitle="EWS Token" />
-                    <ImageConfigInput title="公众号扫码二维码" description="关注公众号二维码：直接「上传图片」（保存到 R2 存储），或粘贴图片直链。要求：正方形 ≥300px 的永久二维码；用户关注后回复「登录」获取 6 位验证码。" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode" />
+                    <ImageConfigInput title="公众号扫码二维码" description="关注公众号二维码：直接「上传图片」（保存到 R2 存储）。要求：正方形 ≥300px 的永久二维码；用户关注后回复「登录」获取 6 位验证码。" type="server" configKey="ews_qrcode_url" configKeyTitle="EWS QRCode" />
                     <ItemTitle title="CDN 加速（七牛镜像回源）" />
                     <ItemInput title="CDN 域名" description="留空=不开启；填写七牛镜像回源 CDN 域名（如 https://cdn.example.com）后，图片/SEO/RSS 的图片会在接口返回时改写为该域名以走边缘加速（运行时可开关，不需重建）。JS/CSS/字体需在构建时设置 ASSET_BASE 为该域名。" type="server" configKey="cdn_host" configKeyTitle="CDN Host" />
                     <ItemSwitch title={t('settings.rss.title')} description={t('settings.rss.desc')} type="client" configKey="rss" />
@@ -374,8 +374,7 @@ function ItemInput({ title, configKeyTitle, description, type, configKey }: { ti
     );
 }
 
-// 图片类配置项：直接上传到 R2（S3 兼容）存储并保存返回的公开 URL；
-// 同时保留「粘贴图片链接」作为 R2 未配置时的降级手段。保存成功/失败均有明确反馈。
+// 图片类配置项：直接上传到 R2 存储并保存返回的公开 URL。保存成功/失败均有明确反馈。
 function ImageConfigInput({ title, description, configKeyTitle, configKey, type }: {
     title: string; description: string; configKeyTitle: string; configKey: string; type: 'client' | 'server';
 }) {
@@ -385,7 +384,6 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
     const config = type === 'client' ? clientConfig : serverConfig;
     const value = config?.get<string>(configKey) ?? "";
     const [loading, setLoading] = useState(false);
-    const [manualUrl, setManualUrl] = useState("");
     const fileRef = useRef<HTMLInputElement>(null);
     const { showAlert, AlertUI } = useAlert();
     const { uploading, upload } = useImageUpload(showAlert);
@@ -435,20 +433,6 @@ function ImageConfigInput({ title, description, configKeyTitle, configKey, type 
                 ? <img src={value} alt={configKeyTitle} referrerPolicy="no-referrer"
                     className="mt-2 max-h-32 rounded-xl border border-neutral-200 object-contain" />
                 : <p className="text-xs text-neutral-400 mt-2">未配置</p>}
-            <div className="flex flex-row items-center gap-2 mt-2 w-full">
-                <input
-                    value={manualUrl}
-                    onChange={(e) => setManualUrl(e.target.value)}
-                    placeholder="或粘贴图片链接（R2 未配置时可用）"
-                    className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm outline-none bg-secondary t-primary"
-                />
-                <Button secondary title="保存链接" onClick={() => {
-                    const u = manualUrl.trim();
-                    if (!u) return;
-                    saveConfig(u);
-                    setManualUrl("");
-                }} />
-            </div>
             <AlertUI />
         </div>
     );

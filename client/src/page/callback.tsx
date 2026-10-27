@@ -25,7 +25,7 @@ export function CallbackPage() {
                     sessionStorage.removeItem('rin_post_login_redirect');
                     window.location.assign(redirect);
                 } else if (data && typeof data !== 'string' && data.permission) {
-                    window.location.assign("/writing");
+                    window.location.assign("/settings");
                 } else {
                     window.location.assign("/");
                 }
