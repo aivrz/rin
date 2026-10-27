@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setCookie } from "typescript-cookie";
 import { useServerConfig } from "../state/config";
+import { useLocation } from "wouter";
 import { client, endpoint } from "../main";
 import { headersWithAuth } from "../utils/auth";
 
@@ -9,6 +10,7 @@ import { headersWithAuth } from "../utils/auth";
 export function ScanPanel() {
     // 优先读取服务端配置 store：后台保存二维码地址后立即生效，无需重开面板 / 刷新
     const serverConfig = useServerConfig();
+    const [, setLocation] = useLocation();
     const storedQr = serverConfig?.get<string>('ews_qrcode_url') || "";
     const [fetchedQr, setFetchedQr] = useState("");
     const [code, setCode] = useState("");
@@ -50,12 +52,12 @@ export function ScanPanel() {
                     // 与 GitHub OAuth（callback.tsx）保持一致，确保刷新后 document.cookie 可读到 token。
                     // 服务端 JWT 无 exp，会话寿命由该 cookie 决定，与 callback.tsx 同步用 30 天。
                     if (d.token) setCookie('token', d.token, { expires: 30, path: '/' });
-                    // token 写入前端域名后通知 App 刷新 profile（随后整页刷新也会再次拉取）
+                    // token 写入前端域名后通知 App 刷新 profile（rin:login 触发 refreshProfile）
                     window.dispatchEvent(new Event('rin:login'));
-                    // 管理员登录后直接进入后台设置页；普通用户仍停留在当前页刷新
+                    // 管理员登录后客户端导航直接进后台设置页（不整页刷新）；普通用户仍停留在当前页刷新
                     client.user.profile.get({ headers: headersWithAuth() }).then(({ data }) => {
                         if (data && typeof data !== 'string' && data.permission) {
-                            window.location.assign('/settings');
+                            setLocation('/settings');
                         } else {
                             window.location.reload();
                         }

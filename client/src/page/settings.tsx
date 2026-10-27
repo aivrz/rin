@@ -41,8 +41,9 @@ export function Settings() {
     // 否则保存后 App 层快照不变，表现为「保存成功但页面毫无变化」。
     useEffect(() => {
         let mounted = true;
-        // force=true：进入设置页强制回源一次，避免展示过期的 sessionStorage 缓存
-        Promise.all([loadClientConfig(true), loadServerConfig(true)])
+        // 去掉 force：App 挂载时已拉过 client 配置（sessionStorage 快照首帧即可用），
+        // server 配置首次进设置页会联网拉一次（serverLoaded 为 false），之后同会话复用内存快照 → 秒开。
+        Promise.all([loadClientConfig(), loadServerConfig()])
             .finally(() => {
                 if (mounted) setLoading(false);
             });
