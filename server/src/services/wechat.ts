@@ -6,6 +6,7 @@ import { setup } from "../setup";
 import { ServerConfig } from "../utils/config-store";
 import { randomHex, sha1Hex } from "../utils/crypto";
 import { cookieAttrs } from "../utils/cookie";
+import { rateLimit } from "../utils/ratelimit";
 
 // 关注公众号登录（erphp-weixin-scan 整合）+ 微信消息回调。
 // 流程：用户关注并回复"登录" → Worker 消息回调生成 6 位验证码并回复发给用户 →
@@ -84,6 +85,12 @@ export function WechatService() {
             group
                 // 前端轮询：按验证码换取登录态
                 .post('/login', async ({ db, jwt, set, request, body: { code } }) => {
+                    // 限流：每 IP 每 10 分钟最多 20 次，防 6 位验证码被爆破；本地开发无 cf-connecting-ip 时跳过
+                    const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '';
+                    if (ip) {
+                        const lim = await rateLimit(`ews_login:${ip}`, 20, 600);
+                        if (!lim.ok) { set.status = 429; return { status: 0, message: `尝试过于频繁，请 ${lim.retryAfter}s 后再试` }; }
+                    }
                     if (!code) return { status: 0 };
                     const rows = await db.select().from(ewsLogs).where(eq(ewsLogs.sceneId, String(code))).limit(1).all() as any[];
                     const rec = rows[0];

@@ -4,6 +4,14 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 const created_at = integer("created_at", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull();
 const updated_at = integer("updated_at", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull();
 
+// 接口限流计数（P2-1）：按 key（通常为 `${route}:${ip}`）记录窗口内请求次数，过期由 expires 控制。
+// 选 D1 而非 KV：写额度更宽裕（10 万/日 vs KV 1000/日），且跨 Worker 实例全局一致。
+export const ratelimit = sqliteTable("ratelimit", {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull(),
+    expires: integer("expires").notNull(),
+});
+
 export const feeds = sqliteTable("feeds", {
     id: integer("id").primaryKey(),
     alias: text("alias"),
