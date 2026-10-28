@@ -118,14 +118,14 @@ function App() {
 
 
             <AdminRoute path="/writing" paddingClassName='mx-4'>
-              <WritingPage />
+              <WritingPage key="new" />
             </AdminRoute>
 
             <AdminRoute path="/writing/:id" paddingClassName='mx-4'>
               {({ id }) => {
                 const id_num = tryInt(0, id)
                 return (
-                  <WritingPage id={id_num} />
+                  <WritingPage id={id_num} key={id_num} />
                 )
               }}
             </AdminRoute>
