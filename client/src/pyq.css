@@ -2612,3 +2612,17 @@ body.dark-theme .pyq-zanp,
         background-position: -100% 0;
     }
 }
+
+/* ============ View Transitions（路由切换原生过渡） ============ */
+/* 默认 UA 已对根做交叉淡入；此处仅微调时长，并尊重 prefers-reduced-motion 关闭动画。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.22s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+}
