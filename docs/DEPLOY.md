@@ -1,292 +1,247 @@
-# 部署
+# 部署指南
 
-项目目前处于开发阶段，文档可能未及时更新或存在描述不清，如遇部署失败请提 [Issue](https://github.com/openRin/Rin/issues/new?assignees=&labels=help+wanted&projects=&template=need-help.md&title=%5BHelp%5D+%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0)
+> 本文基于当前代码库的实际部署方式编写（2026-10 更新）。Rin 采用「前端静态站点 + 后端 Cloudflare Worker」的前后端分离架构，并有 **两种部署拓扑**，本文以**同域（同源）部署**为主线路（本仓库 `100125.xyz` 现网采用），并标注传统双域部署的差异点。
 
-> [!TIP]
-> 我们在文档末尾追加了完整的部署流程演示视频，以便解决您在部署期间遇到的部分困难
-> [点击直达](#操作视频)
+---
 
-## 更新日志
+## 0. 两种部署拓扑
 
-### v0.2.0 2024-06-07 更新
+| | 同域部署（推荐，现网使用） | 双域部署（传统） |
+|---|---|---|
+| 前端 | Cloudflare Pages，域名 `100125.xyz` | Cloudflare Pages，域名 `front.example.com` |
+| 后端 | 同一 `100125.xyz`，通过 Worker 路由 `100125.xyz/api/*` 接入 | 独立 Worker 子域，如 `rinserver.example.com` |
+| `API_URL` | `/api`（相对路径，同源） | `https://rinserver.example.com`（后端子域） |
+| OAuth 回调 | `https://100125.xyz/api/user/{p}/callback` | `https://rinserver.example.com/user/{p}/callback` |
+| CORS 预检 | 无（同源） | 有（Worker 已配置放行 `*`） |
+| 路由配置 | 需在主域加 `/api`、`/seo`、`/sub` 三条 Worker 路由 | 后端子域自带，无需额外路由 |
 
-- 新增 `S3_CACHE_FOLDER` 环境变量
-- 环境变量加密列表与变量列表更新，仅保留必须加密的环境变量
-- 加密变量现在可以通过 GitHub 直接配置
-- GitHub 变量配置更新，新增必须通过 GitHub 配置的加密变量（S3 存储，用于 SEO 索引保存）
-- `GITHUB_CLIENT_ID`与`GITHUB_CLIENT_SECRET`现在添加了前缀`RIN_`（`RIN_GITHUB_CLIENT_ID`,`RIN_GITHUB_CLIENT_SECRET`），以解决 GitHub 变量不能以 `GITHUB_` 开头的问题，使用 Cloudflare 面板配置的 `GITHUB_CLIENT_ID` 与 `GITHUB_CLIENT_SECRET` 不受影响
+> 后端代码两者通用：`server/src/_worker.ts` 检测到 `/api/` 前缀时自动剥离并注入 `x-api-prefix` 头，OAuth 回调据此还原前缀；无前缀时原样处理（双域模式）。切换只是前端 `API_URL` + Cloudflare 路由的不同，无需改后端代码。
 
-## 迁移指南
+---
 
-无特别说明时正常的版本更新直接同步 fork 的仓库即可
+## 1. 准备工作：Cloudflare 凭据
 
-### v0.2.0 迁移指南
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com)，在任一绑定域名右侧找到 **账户 ID（Account ID）**。
+2. 右上角头像 → 我的个人资料 → **API 令牌** → 创建令牌，模板选「编辑 Cloudflare Workers」，保存令牌。
+3. 在 fork 仓库 `Settings → Secrets and Variables → Actions` 中新建两个 **Repository secrets**：
+   ```
+   CLOUDFLARE_ACCOUNT_ID=<账户ID>
+   CLOUDFLARE_API_TOKEN=<令牌>
+   ```
 
-- 由于引入 SEO 优化导致需要在 GitHub 中配置 S3 存储的环境变量，因此需要额外在 GitHub 中配置以下环境变量（明文，添加到 Variables）：
+---
 
-```ini
-SEO_BASE_URL=<SEO 基础地址，用于 SEO 索引，默认为 FRONTEND_URL>
-SEO_CONTAINS_KEY=<SEO 索引时只索引以 SEO_BASE_URL 开头或包含SEO_CONTAINS_KEY 关键字的链接，默认为空>
-S3_FOLDER=<S3 图片资源存储的文件夹，默认为 'images/'>
-S3_CACHE_FOLDER=<S3 缓存文件夹（用于 SEO、高频请求缓存），默认为 'cache/'>
-S3_ENDPOINT=<S3 存储桶接入点地址（仅作公共访问兜底，可留空）>
-S3_ACCESS_HOST=<S3 存储桶访问地址，末尾无'/'>
-```
+## 2. 后端部署（GitHub Actions + migrator）
 
-> [!NOTE]
-> R2 对象存储现已通过 **Worker 绑定**访问（在 `wrangler.toml` 配置 `[[r2_buckets]]`，`binding = "RIN_BUCKET"`），**不再需要 S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY 等任何 S3 凭证**。只需把 R2 桶绑定到 Worker 即可（详见下文「创建 R2 桶」）。
+后端通过 `scripts/migrator.ts` 一键部署：**创建/复用 D1 → 执行增量 SQL 迁移 → 创建队列/DO → 写入 Secrets → `wrangler deploy`**。无需手动 `wrangler d1 migrations apply`。
 
-## 其他文档
-
-[环境变量列表](./ENV.md)
-
-> [!TIP]
-> 下文代码块中若出现形如 <文字> 的内容表示需要根据文字提示替换为自己的内容（`<`和`>`不要保留），如：
->
-> ```
-> bun wrangler d1 create <数据库名称>
-> ```
->
-> 表示将 <数据库名称> 替换为你喜欢的名称，这里使用 rin 替换：
->
-> ```
-> bun wrangler d1 create rin
-> ```
->
-> 这就是最终的命令
-
-打开仓库页面：https://github.com/openRin/Rin
-
-## Fork
-
-点击 Fork 按钮 fork 出一个新仓库
-![1000000657](https://github.com/openRin/Rin/assets/36541432/df3607ca-a8a9-49b8-92ce-6b348afeb13f)
-
-## 前端
-
-> [!TIP]
-> 先简单介绍一下前端与后端的关系，前端是一个静态页面，托管于 Cloudflare Pages上，前端本质上只是一堆不会变化的文件和代码，并没有你的文章数据之类的内容，想要实现如登录，写文章，评论，获取文章列表和内容、评论列表等逻辑还需要与后端进行数据交换；
-> 
-> 后端负责处理具体的逻辑，在本项目中后端运行在 Cloudflare Workers 上，前端通过 API 与后端通信，后端通过 Cloudflare D1 保存文章等数据，通过 Cloudflare R2 存储文章中的图片
-> 
-> 下文提到的前端与后端你可以分别等价代换为 Cloudflare Pages 与 Cloudflare Workers，当提到说需要前端地址或者后端地址时，即为 Cloudflare Pages 地址或 Cloudflare Workers 地址，你可以在 Cloudflare 控制面板中通过少量的操作找到这两个地址，如下面的截图所示：
-> 前端（Pages）的地址在 `Workers 和 Pages` > 你的 Pages 项目 > `部署` 中可以找到：
-> ![图片](https://github.com/openRin/Rin/assets/36541432/d9dcc5f2-6930-4487-af4b-0ab52e948114)
-> 图中的`rin-6qe.pages.dev`,`direct.xeu.life` 都是前端地址，如果有更多的地址，你还可以点击形如 `+2 个域` 的链接查看更多的地址，这些地址都是可以访问的，你可以使用其中任意一个地址，但是需要保持不同地方都填写的是同一个前端地址（如果有多个环境变量要求填写前端地址的话），通常来说前端地址是 `https://rin-6qe.pages.dev` 或 `https://direct.xeu.life` 这样的形式
->
-> 后端（Workers）的地址在 `Workers 和 Pages` > 你的 Workers 项目 > `设置` > `触发器` 中可以找到：
-> ![图片](https://github.com/openRin/Rin/assets/36541432/0a2385b7-94db-4469-bef9-399cc334f1b6)
-> 图中的 `rin.xeu.life` 和 `rin-server.xeu.workers.dev` 都是后端地址，前者是自定义域名，后者是默认分配的域名，你可以使用默认分配的域名，也可以自定义域名，自定义域名需要在 Cloudflare 控制面板中进行配置，在本文档中当要求填写后端地址时，你可以填写形如 `https://rin.xeu.life` 或 `https://rin-server.xeu.workers.dev`的地址，但需保持不同地方都填写的是同一个后端地址（如果有多个环境变量要求填写后端地址的话）
-
-登录 [Cloudflare](https://dash.cloudflare.com) 控制台，进入 `Workers 和 Pages` 页面，点击`创建应用程序`，选择 Pages
-
-![1000000658](https://github.com/openRin/Rin/assets/36541432/35d4f9e3-3af3-4ec8-8060-2a352f4d51ae)
-
-点击连接到 Git 连接自己的 GitHub 账号并选择 Fork 的存储库
-
-![1000000666](https://github.com/openRin/Rin/assets/36541432/e3b6da75-1a5f-46ec-9820-636cc5238023)
-
-点击 `开始设置` 进入配置页面：
-
-构建设置按照填入以下内容：
+### 2.1 配置 GitHub Actions 变量（Variables，明文）
 
 ```
-框架预设：无
-构建命令：bun b
-构建输出目录：client/dist
-路径：<留空>
+DB_NAME=rin                      # D1 数据库名
+WORKER_NAME=rin-server           # Worker 名
+FRONTEND_URL=https://100125.xyz  # Webhook/SEO 拼接用，同域填主域
+S3_FOLDER=images/                # R2 图片目录（默认）
+S3_CACHE_FOLDER=cache/           # 缓存目录（默认）
+S3_ENDPOINT=                     # 公共访问兜底，可留空
+S3_ACCESS_HOST=https://rin.100125.xyz  # R2 公共访问域名（绑定到 R2 桶的自定义域）
+WEBHOOK_URL=                     # 新评论 Webhook，可选
+RSS_TITLE=                       # RSS 标题，可选
+RSS_DESCRIPTION=                 # RSS 描述，可选
 ```
 
-> [!TIP]
-> **七牛镜像回源加速**：图片加速在站点「设置页 → CDN 加速」填写七牛 CDN 域名即可（运行时可开关，不需重建）。
-> 若要让 **JS/CSS/字体** 也走七牛边缘，需在 Cloudflare Pages「构建设置 → 环境变量（仅构建）」添加 `ASSET_BASE=https://<你的七牛CDN域名>`，重新部署；该域名镜像回源的源站填本站 Pages 域名。
+> 若使用 Cloudflare R2（推荐，已通过 Worker 绑定访问，无需 S3 凭证），`S3_ACCESS_HOST` 填你给 R2 桶绑定的公共域名即可，无需 `S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY`。
 
-![1000000659](https://github.com/openRin/Rin/assets/36541432/98fb3021-932b-4bfa-8118-3378f98ff628)
-
-环境变量复制以下内容，根据自身情况修改变量值：
-
-> [!IMPORTANT]
-> 最后两行环境变量 `SKIP_DEPENDENCY_INSTALL` 和 `UNSTABLE_PRE_BUILD` 为配置 Cloudflare 使用 Bun 进行构建的参数。`UNSTABLE_PRE_BUILD` 只需执行依赖安装即可——Bun 在 Pages 构建环境中已预装，旧文档里的 `asdf install bun latest` 会被 GitHub 限流返回 403 导致整个预构建退出 1、构建失败，因此保持为 `bun install`（不要写 asdf 那段）。
-
-```ini
-NAME=Xeu # 昵称，显示在左上角
-DESCRIPTION=杂食动物 # 个人描述，显示在左上角昵称下方
-AVATAR=https://avatars.githubusercontent.com/u/36541432 # 头像地址，显示在左上角
-API_URL=https://rin.xeu.life # 服务端域名，可以先使用默认值查看效果，后续部署服务端后再修改
-PAGE_SIZE=5 # 默认分页大小，推荐 5
-SKIP_DEPENDENCY_INSTALL=true
-UNSTABLE_PRE_BUILD=bun install
-```
-
-![1000000660](https://github.com/openRin/Rin/assets/36541432/0fe9276f-e16f-4b8a-87c5-14de582c9a3a)
-
-点击`保存并部署`，等待构建部署，不出意外的话约 30s 后即可部署完成：
-
-![1000000661](https://github.com/openRin/Rin/assets/36541432/979810b7-3f6f-415b-a8e8-5b08b0da905d)
-
-点击打开即可看见前端页面
-
-![1000000662](https://github.com/openRin/Rin/assets/36541432/57c61ad6-c324-48e4-a28f-a1708fd7d41a)
-
-前端就全部部署完成啦 🎉
-
-### 故障排除
-
-如遇以下错误，请检查环境变量中是否存在空格等无关内容
-```
-2024-06-07T02:24:04.979145Z	Using v2 root directory strategy
-2024-06-07T02:24:05.003931Z	Success: Finished cloning repository files
-2024-06-07T02:24:06.568608Z	Checking for configuration in a wrangler.toml configuration file (BETA)
-2024-06-07T02:24:06.56923Z	
-2024-06-07T02:24:06.667468Z	No wrangler.toml file found. Continuing.
-2024-06-07T02:24:07.542274Z	Failed: an internal error occurred. If this continues, contact support: https://cfl.re/3WgEyrH
-```
-
-如错误提示为以下内容，请点击`重试部署`再次尝试：
-```
-16:30:39.855	Using v2 root directory strategy
-16:30:39.881	Success: Finished cloning repository files
-16:30:40.746	Failed: unable to read wrangler.toml file with code: -11
-16:30:41.587	Failed: an internal error occurred. If this continues, contact support: https://cfl.re/3WgEyrH
-```
-
-后续可以在 Pages 的设置中再次修改环境变量以及配置域名
-
-但是现在页面中什么内容也没有，因为我们还没有开始部署后端
-
-## 后端
-
-后端部署比较繁琐，但经过几次的优化部署流程，现在已经大大简化了
-
-### 获取用户 ID 与 API 令牌
-
-参照 https://developers.cloudflare.com/workers/wrangler/ci-cd/ 来配置 GitHub Actions 所需的 Cloudflare 登录环境变量
-
-ID 随意点击一个自己绑定的域名，进入后在右侧（需要向下滑动一段距离）可以找到`账户ID`
-
-创建 API 令牌：点击右上角`头像` > `我的个人资料` > `API 令牌` > `创建令牌`，模板选择`编辑 Cloudflare Workers`：
-![1000000663](https://github.com/openRin/Rin/assets/36541432/3a34a2ad-b993-47fe-965d-31cca4a8e92a)
-
-创建完成后保存令牌
-
-### 配置 GitHub Action
-
-在自己 fork 的仓库中 > `Settings` > `Secrets and Variables` > `Actions` > `Repository secrets` 点击 `New repository secret` 创建以下两个密钥：
+### 2.2 配置 GitHub Actions 密钥（Secrets，加密）
 
 ```
-CLOUDFLARE_ACCOUNT_ID=<你的用户ID>
-CLOUDFLARE_API_TOKEN=<你的令牌>
+JWT_SECRET=<任意随机字符串，用于签发登录 JWT>
+RIN_GITHUB_CLIENT_ID=<GitHub OAuth App 的 Client ID>
+RIN_GITHUB_CLIENT_SECRET=<GitHub OAuth App 的 Client Secret>
+# 第三方登录（按需，缺省则对应入口置灰）
+QQ_APPID= / QQ_APPKEY=
+WEIBO_APPKEY= / WEIBO_APPSECRET=
+WECHAT_APPID= / WECHAT_APPSECRET=
+# 公众号扫码登录（按需）
+EWS_APPID= / EWS_APPSECRET= / EWS_TOKEN=
 ```
 
-同时你可以在`Actions secrets and variables`的 `Variables` 中创建以下变量：
+### 2.3 触发部署
 
-```ini
-DB_NAME=<数据库名称，默认rin>
-WORKER_NAME=<Cloudflare Worker 名称，默认rin-server>
-FRONTEND_URL=<前端地址，用于Webhook通知时拼接地址，可不填>
-SEO_BASE_URL=<SEO 基础地址，用于 SEO 索引，默认为 FRONTEND_URL>
-SEO_CONTAINS_KEY=<SEO 索引时只索引以 SEO_BASE_URL 开头或包含SEO_CONTAINS_KEY 关键字的链接，默认为空>
-S3_FOLDER=<S3 图片资源存储的文件夹，默认为 'images/'>
-S3_CACHE_FOLDER=<S3 缓存文件夹（用于 SEO、高频请求缓存），默认为 'cache/'>
-S3_ENDPOINT=<S3 存储桶接入点地址（仅作公共访问兜底，可留空）>
-S3_ACCESS_HOST=<S3 存储桶访问地址，末尾无'/'>
+在仓库 `Actions → Deploy` 手动 **Run workflow**（或 push 到 `main`/`dev` 自动触发）。脚本会自动：
+
+- 幂等创建 D1 数据库 `rin`（已存在则跳过）；
+- 执行 `server/sql/` 中版本号大于当前 `migration_version` 的迁移（当前已到 `0009`，含限流表等）；
+- 幂等创建队列 `rin-cron`（不同 wrangler 版本「已存在」文案不一，脚本均按就绪跳过）；
+- 部署 Worker，并以 `new_sqlite_classes`（**免费套餐必须**，旧 `new_classes` 仅付费可用，否则报 `code 10097`）创建 `RateLimiter` Durable Object 命名空间；
+- 写入上述 Secrets。
+
+> ⚠️ 本仓库固定使用 `bunx wrangler@3` 执行部署（3.114+ 才支持 `new_sqlite_classes`）。`bun.lockb` 冻结的 3.69.1 不认识该字段，勿改用。
+
+部署成功标志：Actions 日志末尾出现 `🎉All Done.`。
+
+---
+
+## 3. 前端部署（Cloudflare Pages，Git 集成自动构建）
+
+1. `Workers 和 Pages → 创建 → Pages → 连接到 Git`，选择 fork 仓库。
+2. 构建设置：
+   ```
+   框架预设：无
+   构建命令：bun b
+   构建输出目录：client/dist
+   路径：留空
+   ```
+3. 环境变量（Pages 环境变量，**修改后需重新部署**才会生效，因为 `API_URL` 在构建期内联进前端）：
+   ```
+   NAME=<昵称>
+   DESCRIPTION=<个人描述>
+   AVATAR=<头像 URL>
+   API_URL=/api                    # 同域部署填 /api；双域部署填 https://rinserver.example.com
+   PAGE_SIZE=5
+   SKIP_DEPENDENCY_INSTALL=true
+   UNSTABLE_PRE_BUILD=bun install  # 仅 bun install，不要写 asdf 那段（会被 GitHub 限流 403 导致构建失败）
+   ```
+4. 点击「保存并部署」。之后 push 到 `main` 会**自动重新构建**（Pages Git 集成），无需手动部署。
+
+> 七牛镜像回源加速：站点「设置 → CDN 加速」填 CDN 域名即可（运行时可开关）。若要让 JS/CSS/字体也走 CDN，需在 Pages 构建设置的「环境变量（仅构建）」加 `ASSET_BASE=https://<七牛CDN域名>` 后重新部署。
+
+---
+
+## 4. 同域部署的关键：在主域配置 Worker 路由
+
+同域模式下，前端在 `100125.xyz`，后端必须经 Cloudflare **Workers 路由**把 `/api/*`（以及 SEO 用的 `/seo/*`、`/sub/*`）交给 `rin-server`。
+
+### 4.1 添加路由（重要坑）
+
+到 Cloudflare 控制台 → `100125.xyz` 这个域名（zone）→ **Workers 路由**，添加以下三条（**开头不要 `*`**，否则不匹配 apex 主域）：
+
+| 路由（模式） | Worker |
+|---|---|
+| `100125.xyz/api/*` | rin-server |
+| `100125.xyz/seo/*` | rin-server |
+| `100125.xyz/sub/*` | rin-server |
+
+区域选 `100125.xyz`。
+
+> ⚠️ **经典坑**：模式写成 `*100125.xyz/api/*`（开头带 `*`）只匹配子域（如 `www.100125.xyz`），**不匹配 apex 主域** `100125.xyz`。结果就是主域 `/api/*` 被 Pages 的 SPA fallback 接管，浏览器渲染出 React 404 页，而非 Worker 响应。务必用 `100125.xyz/api/*`（host + path，无前导 `*`）。
+
+### 4.2 验证
+
+路由即时生效（无需重新部署）。用 curl 验证：
+
+```
+curl -s https://100125.xyz/api/        # 应返回纯文本 Hi（Worker 探针）
+curl -s https://100125.xyz/api/feed    # 应返回 JSON
 ```
 
-> [!TIP]
-> 关于 SEO 工作原理与配置请参考 [SEO 文档](./SEO.md)
+若返回的是博客 HTML 页面，说明路由仍没生效，回到 4.1 核对模式。
 
-完成准备工作以后即可在 GitHub Action 中手动触发一次 Workflow，一切正常的话很快就能部署完成
+### 4.3 SEO 预渲染路由（+ Transform Rule）
 
-这样服务端就部署好了，但是目前仍然不能运行，我们还需要配置 GitHub OAuth 用于登录和 S3 存储用于存储图片
+`/seo/*` 用于搜索引擎预渲染（详见 [SEO.md](./SEO.md)）。除 4.1 的 `100125.xyz/seo/*` 路由外，还需在 zone 的 **规则 → 转换规则 → 重写 URL** 创建一条规则：
 
-> [!TIP]
-> 在 v0.2.0 版本后，不再需要回到 Cloudflare 面板配置后端域名与一些敏感的环境变量，所有环境变量都可以通过 GitHub 创建对应的密钥来添加，如果你在更早的版本中部署过，需要将环境变量迁移到 GitHub 中
+- 筛选表达式：`(http.host eq "100125.xyz" and http.user_agent contains "Googlebot")`
+- 重写路径：`Dynamic`，值 `concat("/seo", http.request.uri.path)`，保留查询
 
-> ~~回到 Cloudflare 面板配置后端域名与一些敏感的环境变量~~
->
-> ~~在 `设置` > `触发器` > `自定义域` 处可以自定义后端的域名，默认也有分配一个`workers.dev`的域名~~
->
-> ~~在 `设置` > `变量` > `环境变量` 处编辑变量，点击添加变量，复制粘贴以下内容至变量名处即可自动添加上所有环境变量，之后再根据自己的具体配置修改变量值：~~
-> 在 v0.2.0 版本后，以下所有环境变量都建议通过在 GitHub 创建对应的密钥来添加，添加方式与上文添加 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 相同，以下是环境变量列表：
+> `/sub/*` 同理（若启用）。这些路由只影响爬虫，**不影响真人访问与登录**。
 
-```ini
-RIN_GITHUB_CLIENT_ID=<你的GithubClientID>
-RIN_GITHUB_CLIENT_SECRET=<你的GithubClientSecret>
-JWT_SECRET=<JWT 认证所需密钥，可为常规格式的任意密码>
-```
+---
 
-## 接入 GitHub OAuth
+## 5. OAuth 登录回调配置
 
-打开 <https://github.com/settings/developers>，选择 `New OAuth App` 创建一个新的 Oauth App，填入自己的应用名称与主页地址(带`http://`或`https://`)，`Authorization callback URL` 填写
+后端 `oauth.ts` 按 `请求 origin + /api 前缀` 自动拼 `redirect_uri`。**平台登记的回调必须与之一致**，否则 `state`/`redirect_uri` 不匹配。
+
+### 5.1 GitHub（必配，管理员登录）
+
+GitHub → Settings → Developer settings → OAuth Apps → New OAuth App：
 
 ```
-https://<你的后端地址>/user/github/callback
+Authorization callback URL = https://100125.xyz/api/user/github/callback   # 同域
+                            （双域则为 https://rinserver.example.com/user/github/callback）
 ```
 
-这里附上我的参数
-![GitHub OAuth 配置](https://github.com/openRin/Rin/assets/36541432/74ab8d16-93ca-4919-beec-4beb7a2003a6)
+把 `Client ID` / `Client Secret` 填入 2.2 的 `RIN_GITHUB_CLIENT_ID` / `RIN_GITHUB_CLIENT_SECRET`。
 
-随后配置环境变量中 OAuth 部分
+> GitHub OAuth 无需在代码里配 `redirect_uri`（arctic 授权请求不带 `redirect_uri`），只要开放平台登记的回调一致即可。
 
-以下是具体的配置，`RIN_GITHUB_CLIENT_ID`填写 GitHub OAuth App 中的`Client ID`,`RIN_GITHUB_CLIENT_SECRET`填写在 GitHub OAuth App 点击 `Generate a new client secret` 后的 `Client secret`，注意每次创建后只展示一次，后续无法查看，如果不慎丢失重新生成一个新的即可
+### 5.2 QQ / 微博 / 微信（按需）
 
-## 创建 R2 桶
+在各开放平台后台把**授权回调地址**登记为（同域模式）：
 
-理论上支持任意遵循 S3 协议的对象存储服务，这里只介绍接入 Cloudflare R2 的操作
-
-Cloudflare 面板中点击 `R2` > `创建存储桶`，填写名称，选择距离自己近的位置：
-![1000000665](https://github.com/openRin/Rin/assets/36541432/17c5ad7b-8a3a-49b2-845a-8d043484aa63)
-
-创建存储桶之后，把该桶**绑定到 Worker**（无需 S3 API 地址 / 凭证）：在 Cloudflare 面板 `Workers & Pages` > 你的 Worker > `设置` > `绑定` 中添加 `R2 桶绑定`，变量名填 `RIN_BUCKET`，桶填你的桶名（如 `rin-storage`）；或在 `wrangler.toml` 增加：
-
-```ini
-[[r2_buckets]]
-binding = "RIN_BUCKET"
-bucket_name = "rin-storage"
+```
+QQ：      https://100125.xyz/api/user/qq/callback
+微博：    https://100125.xyz/api/user/weibo/callback
+微信：    https://100125.xyz/api/user/wechat/callback
 ```
 
-> [!NOTE]
-> `S3_ENDPOINT` 仅作为图片公共访问地址的兜底（当 `S3_ACCESS_HOST` 为空时回退），如已配置 `S3_ACCESS_HOST` 可留空。
+- 微信额外要求：在微信公众平台将「网页授权域名」填 `100125.xyz`（主域，不带 `/api`）；且需认证**服务号**才有 `snsapi_userinfo` 权限，订阅号不可用（该项应置灰）。
+- AppID/AppSecret 在后台「设置 → 第三方登录」填写（对应 `qq_appid/qq_appkey`、`weibo_appkey/weibo_appsecret`、`wechat_appid/wechat_appsecret`），后端优先读 D1 配置、缺则读 Secrets。
 
-然后在`公开访问`处绑定一个域名用于访问资源，绑定的域名对应于`S3_ACCESS_HOST`环境变量：
+> 后台「设置」页的 OAuth 提示文案已与后端实际回调保持一致（含 `/api`）。
 
-```ini
-S3_ACCESS_HOST=https://image.xeu.life
+### 5.3 公众号扫码登录（EWS，独立 Webhook）
+
+公众号消息回调是单独的 Webhook，**不走 `/api`**：在微信公众平台「开发 → 基本配置 → 服务器配置」填：
+
+- Token：与后台 `EWS_TOKEN` 一致（明文模式，不要选安全/兼容模式）；
+- 服务器地址(URL)：`https://rinserver.100125.xyz/wechat/callback`（Worker 实际部署域名下的 `/wechat/callback`）。
+
+---
+
+## 6. R2 对象存储（图片）
+
+1. Cloudflare `R2 → 创建存储桶`（如 `rin-storage`）。
+2. 把桶**绑定到 Worker**（无需 S3 凭证）：Worker 设置 → 绑定 → R2 桶绑定，变量名 `RIN_BUCKET`，桶名 `rin-storage`。（`migrator.ts` 写入的 `wrangler.toml` 已含此绑定，正常流程自动完成。）
+3. 在 R2 桶「公共访问」绑定一个域名（如 `rin.100125.xyz`），对应环境变量 `S3_ACCESS_HOST=https://rin.100125.xyz`。
+4. **图片上传走「Worker 代理上传」**（浏览器 → 后端 Worker → R2），不经过浏览器直连 R2，**无需配置 R2 桶 CORS**。
+
+---
+
+## 7. 环境变量总览
+
+完整列表见 [ENV.md](./ENV.md)。要点：
+
+- **前端（Pages）**：`API_URL`（核心，决定拓扑）、`NAME`、`DESCRIPTION`、`AVATAR`、`PAGE_SIZE`、`SKIP_DEPENDENCY_INSTALL`、`UNSTABLE_PRE_BUILD`。
+- **后端（GitHub Actions Variables）**：`DB_NAME`、`WORKER_NAME`、`FRONTEND_URL`、`S3_*`、`WEBHOOK_URL`、`RSS_*`。
+- **后端（GitHub Actions Secrets）**：`JWT_SECRET`、`RIN_GITHUB_*`、`QQ_*`、`WEIBO_*`、`WECHAT_*`、`EWS_*`。
+
+---
+
+## 8. 回滚与故障排除
+
+### 8.1 同源 ↔ 双域回滚
+
+只需改前端 `API_URL`：
+- 同域 → 双域：`API_URL` 改为 `https://rinserver.100125.xyz`，重新部署前端（CORS 已配置放行 `*`、独立 Worker 与 `rinserver` 自定义域保留未动）。
+- 双域 → 同域：改回 `/api` + 按第 4 节配好主域路由。
+
+### 8.2 登录报 `state mismatch` / 500
+
+- 主因：发起登录（种 `state` cookie）与回调不在同一 host。确保 `API_URL` 已切换且**浏览器硬刷新**（Ctrl+F5）清掉旧 JS 缓存后再登录。
+- 核对平台登记的回调地址与本节点 5 完全一致（尤其是否带 `/api`）。
+
+### 8.3 主域 `/api` 返回的是页面而非 `Hi`
+
+见 4.1 的路由模式坑：确认用的是 `100125.xyz/api/*`（无前导 `*`）。
+
+### 8.4 部署报 `Queue "rin-cron" does not exist` / `code 10097`
+
+- 队列未创建：`migrator.ts` 已内置幂等创建，正常流程不会出现；若手动部署请确保用 `bunx wrangler@3`。
+- `code 10097`（DO 命名空间）：免费套餐必须用 `new_sqlite_classes`，确认 `wrangler.toml` 由 `migrator.ts` 生成（已是）。
+
+### 8.5 迁移报 `no such column: createdAt` 之类
+
+历史坑：SQL 迁移列名必须用小写蛇形（如 `created_at`），与 drizzle 属性名（驼峰）区分。当前 `server/sql` 已修正，正常增量迁移不会复现。
+
+---
+
+## 9. 本地开发
+
+```
+bun install
+bun scripts/dev-migrator.ts   # 对本地 D1 应用迁移
+bun dev                       # 本地起前后端开发服务
 ```
 
-R2 现已通过 Worker 绑定访问，**无需创建任何 API 令牌**，上一步绑定完成后即可使用。
-
-至此后端就已经部署完成了，记得将前端的 API_URL 修改为后端的地址，与此同时，如果你需要 WebHook 通知的话，还可在后端配置环境变量`WEBHOOK_URL`为你的 Webhook 地址，在新增评论时会像目标 URL 发送一条 POST 消息，消息格式为：
-
-```json
-{
-  "content": "消息内容"
-}
-```
-
-> [!TIP]
-> 在所有环境变量调试完毕后可点击加密按钮加密环境变量（只保留 FRONTEND_URL 和 S3_FOLDER），这样下次部署时加密的环境变量就不会覆盖/删除了
-
-### R2 CORS 配置（当前默认上传无需，仅历史方案需要）
-
-> [!IMPORTANT]
-> **当前版本图片上传走「Worker 代理上传」**：浏览器把图片字节发给后端 Worker，由 Worker 转发到 R2，**不经过浏览器直连 R2**，因此 **无需配置 R2 桶的 CORS**，部署更简单、行为更确定。下方内容仅在使用过旧版「预签名直传」方案的仓库/分支时有参考价值。
-
-<details>
-<summary>历史方案：预签名直传 R2 才需要 CORS（当前默认已不采用）</summary>
-
-旧版曾默认「预签名直传 R2」：浏览器先换限时 PUT URL 再直传 R2，请求带 `Content-Type` 触发跨域预检，需 R2 桶允许前端域名的跨域 `PUT`。
-
-**方式一：Cloudflare 控制台** —— R2 桶 > `设置` > `CORS` > 添加策略：Allowed Origins 填前端地址（Pages 默认域名与自定义域名都要加）；Allowed Methods 含 `GET/PUT/POST/HEAD/OPTIONS`；Allowed Headers 含 `content-type`、`*`；Expose Headers `ETag`；Max Age `3600`。
-
-**方式二：Wrangler** —— 新建 `cors.json`（`AllowedOrigins` 填前端域名数组，`AllowedMethods` 同上，`AllowedHeaders` 为 `["content-type","*"]`，`ExposeHeaders` 为 `["ETag"]`，`MaxAgeSeconds` 为 `3600`），执行 `wrangler r2 bucket cors put <桶名称> --file cors.json`（需 `wrangler login`，桶名称即 `S3_BUCKET` 的值）。
-
-</details>
-
-# 操作视频
-由于时间原因未对以下视频做剪辑与后期说明处理，如果对于部署流程不了解或疑惑可参考视频步骤
-
-
-https://github.com/openRin/Rin/assets/36541432/3ed98e93-2cc3-4e5f-a885-4d16a48500c3
-
-
+前端本地默认连 `API_URL=http://localhost:3001`（见 `client/src/main.tsx` 兜底值），便于本地联调。
