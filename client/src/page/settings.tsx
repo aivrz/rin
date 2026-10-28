@@ -90,11 +90,11 @@ export function Settings() {
                     <ItemTitle title="背景音乐" />
                     <ItemInput title="网易云音乐" description={`粘贴网易云音乐的歌单 / 单曲 / 专辑链接均可，例如歌单 https://music.163.com/playlist?id=123456、单曲 https://music.163.com/#/song?id=1303026047、专辑 https://music.163.com/#/album?id=123456。单曲会作为单个曲目播放，专辑按其歌曲列表解析。目前仅支持网易云音乐，其它平台暂不支持。`} type="client" configKey="music" configKeyTitle="Music Playlist URL" />
                     <ItemTitle title="第三方登录" />
-                    <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
+                    <ItemInput title="QQ AppID" description={`在 https://connect.qq.com 创建网站应用；授权回调地址填 ${origin}/api/user/qq/callback`} type="server" configKey="qq_appid" configKeyTitle="QQ AppID" />
                     <ItemInput title="QQ AppKey" description="QQ 互联应用 AppKey（即 AppSecret）" type="server" configKey="qq_appkey" configKeyTitle="QQ AppKey" />
-                    <ItemInput title="微博 AppKey" description={`在 https://open.weibo.com 创建应用；回调地址填 ${origin}/user/weibo/callback`} type="server" configKey="weibo_appkey" configKeyTitle="微博 AppKey" />
+                    <ItemInput title="微博 AppKey" description={`在 https://open.weibo.com 创建应用；回调地址填 ${origin}/api/user/weibo/callback`} type="server" configKey="weibo_appkey" configKeyTitle="微博 AppKey" />
                     <ItemInput title="微博 AppSecret" description="微博开放平台应用 AppSecret" type="server" configKey="weibo_appsecret" configKeyTitle="微博 AppSecret" />
-                    <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 配置网页授权域名；回调 ${origin}/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
+                    <ItemInput title="微信网页授权 AppID" description={`需认证服务号；在 mp.weixin.qq.com 将「网页授权域名」填 ${origin}（即主域名，不带 /api）；授权回调地址填 ${origin}/api/user/wechat/callback`} type="server" configKey="wechat_appid" configKeyTitle="微信 AppID" />
                     <ItemInput title="微信网页授权 AppSecret" description="微信公众平台应用 AppSecret" type="server" configKey="wechat_appsecret" configKeyTitle="微信 AppSecret" />
                     <ItemInput title="公众号扫码 AppID" description="当前版本未使用（消息回调走明文模式，签名校验仅需 Token），可留空" type="server" configKey="ews_appid" configKeyTitle="EWS AppID" />
                     <ItemInput title="公众号扫码 AppSecret" description="当前版本未使用，可留空" type="server" configKey="ews_appsecret" configKeyTitle="EWS AppSecret" />
