@@ -1,8 +1,7 @@
 import { Suspense, lazy, useEffect, useContext, useMemo, useState, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import { getCookie } from 'typescript-cookie'
-import { DefaultParams, PathPattern, Route, Router, Switch, useLocation } from 'wouter'
-import { useAnimatedLocation } from './hooks/useAnimatedLocation'
+import { DefaultParams, PathPattern, Route, Switch, useLocation } from 'wouter'
 import Footer from './components/footer'
 import { Header } from './components/header'
 import { Padding } from './components/padding'
@@ -74,7 +73,7 @@ function App() {
   }, [refreshProfile])
   const favicon = useMemo(() => config.get<string>("favicon"), [config])
   return (
-    <Router hook={useAnimatedLocation}>
+    <>
       <RouteProgress />
       <ClientConfigContext.Provider value={config}>
         <ProfileContext.Provider value={profile}>
@@ -185,7 +184,7 @@ function App() {
           </ProfileLoadedContext.Provider>
         </ProfileContext.Provider>
       </ClientConfigContext.Provider>
-    </Router>
+    </>
   )
 }
 
