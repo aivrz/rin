@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { timeago } from "../utils/timeago";
@@ -8,6 +8,7 @@ import { CommentItem } from "./comment_item";
 import { buildCommentTree, FlatComment } from "../utils/commentTree";
 import { useLike } from "../hooks/useLike";
 import { useLoginModal } from "../hooks/useLoginModal";
+import { usePrefetch, prefetchPage, prefetchFeedData, prefetchMarkdown } from "../hooks/usePrefetch";
 import { ProfileContext } from "../state/profile";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
@@ -46,20 +47,41 @@ export function FeedCard({
     const profile = useContext(ProfileContext);
     // 列表已返回 likes/liked，直接用初始值，避免逐卡片请求
     const like = useLike(id, { count: likes || 0, liked: liked || false, fetch: false });
+    // 卡片 hover/聚焦/触摸即预取文章详情 chunk 与数据，点击进入近乎秒开（幂等节流）
+    const pf = usePrefetch(() => { prefetchPage('feed'); prefetchMarkdown(); prefetchFeedData(id) });
     const [lightbox, setLightbox] = useState<string | null>(null);
     const [commentOpen, setCommentOpen] = useState(false);
     const [cmtList, setCmtList] = useState(comments);
+    const cardRef = useRef<HTMLDivElement>(null);
 
-    // 首页卡片挂载即拉取该文章的评论（含 parentId 嵌套），无需点击评论按钮即可看到多级嵌套评论
+    // 收敛首页评论 N+1：不再挂载即拉取，改为卡片进入视口（含 200px 预加载边距）才拉一次，
+    // 首屏仅当前/临近可见卡片请求评论，未滚到的卡片不发起，避免一屏 N 个并发请求造成 jank。
+    // 列表已带评论数据时直接复用，不再请求。
     useEffect(() => {
         if (!id) return;
-        client.feed.comment({ feed: id }).get({ headers: headersWithAuth() })
-            .then(({ data, error }) => {
-                if (!error && data && Array.isArray(data)) {
-                    setCmtList(data as FlatComment[]);
-                }
-            });
-    }, [id]);
+        if (comments && comments.length > 0) return;
+        const el = cardRef.current;
+        if (!el) return;
+        let fetched = false;
+        const load = () => {
+            if (fetched) return;
+            fetched = true;
+            client.feed.comment({ feed: id }).get({ headers: headersWithAuth() })
+                .then(({ data, error }) => {
+                    if (!error && data && Array.isArray(data)) {
+                        setCmtList(data as FlatComment[]);
+                    }
+                });
+        };
+        const io = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+                load();
+                io.disconnect();
+            }
+        }, { rootMargin: "200px" });
+        io.observe(el);
+        return () => io.disconnect();
+    }, [id, comments]);
 
     const author = user?.username || "匿名";
     const avatar = user?.avatar || "";
@@ -75,7 +97,7 @@ export function FeedCard({
 
     return (
         <>
-            <div className="pyq-content">
+            <div className="pyq-content" {...pf} ref={cardRef}>
                 <div className="pyq-content-left">
                     <Link href="/" aria-label="主页" title="主页">
                         {avatar

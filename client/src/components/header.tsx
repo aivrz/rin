@@ -4,6 +4,7 @@ import ReactModal from "react-modal";
 import Popup from "reactjs-popup";
 import { Link, useLocation } from "wouter";
 import { useLoginModal } from "../hooks/useLoginModal";
+import { usePrefetch, prefetchPage } from "../hooks/usePrefetch";
 import { Profile, ProfileContext } from "../state/profile";
 import { Button } from "./button";
 import { Input } from "./input";
@@ -71,6 +72,13 @@ export function Header({ children }: { children?: React.ReactNode }) {
     ), [profile, children, logo])
 }
 
+// 导航项指向的懒加载页：hover/聚焦即预取对应 chunk。首页/时间线/标签/搜索为静态引入，无需预取。
+const NAV_PREFETCH: Record<string, 'writing' | 'settings' | 'friends'> = {
+    '/writing': 'writing',
+    '/settings': 'settings',
+    '/friends': 'friends',
+}
+
 function NavItem({ menu, title, selected, href, when = true, onClick }: {
     title: string,
     selected: boolean,
@@ -79,6 +87,7 @@ function NavItem({ menu, title, selected, href, when = true, onClick }: {
     when?: boolean,
     onClick?: () => void
 }) {
+    const pf = usePrefetch(() => { const n = NAV_PREFETCH[href]; if (n) prefetchPage(n) })
     return (
         <>
             {when &&
@@ -86,6 +95,7 @@ function NavItem({ menu, title, selected, href, when = true, onClick }: {
                     className={`${menu ? "" : "hidden"} md:block cursor-pointer hover:text-theme duration-300 px-2 py-4 md:p-4 text-sm ${selected ? "text-theme" : "dark:text-white"}`}
                     state={{ animate: true }}
                     onClick={onClick}
+                    {...pf}
                 >
                     {title}
                 </Link>}

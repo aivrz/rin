@@ -16,6 +16,8 @@ import { TimelinePage } from './page/timeline'
 import { ClientConfigContext, loadClientConfig, useClientConfig } from './state/config.ts'
 import { Profile, ProfileContext, ProfileLoadedContext } from './state/profile'
 import { headersWithAuth } from './utils/auth'
+import { PageSkeleton } from './components/loading'
+import { RouteProgress } from './components/routeProgress'
 import { tryInt } from './utils/int'
 import { SearchPage } from './page/search.tsx'
 import { Tips, TipsPage } from './components/tips.tsx'
@@ -72,13 +74,13 @@ function App() {
   const favicon = useMemo(() => config.get<string>("favicon"), [config])
   return (
     <>
+      <RouteProgress />
       <ClientConfigContext.Provider value={config}>
         <ProfileContext.Provider value={profile}>
           <Helmet>
             {favicon &&
               <link rel="icon" href={favicon} />}
           </Helmet>
-          <Suspense fallback={<div className="p-4 text-sm text-neutral-500">加载中…</div>}>
           <ProfileLoadedContext.Provider value={profileLoaded}>
           <Switch>
             <RoutePyq path="/">
@@ -180,7 +182,6 @@ function App() {
             <Route>404: No such page!</Route>
           </Switch>
           </ProfileLoadedContext.Provider>
-          </Suspense>
         </ProfileContext.Provider>
       </ClientConfigContext.Provider>
     </>
@@ -197,7 +198,9 @@ function RouteMe({ path, children, headerComponent, paddingClassName }:
             {headerComponent}
           </Header>
           <Padding className={paddingClassName}>
-            {typeof children === 'function' ? children(params) : children}
+            <Suspense fallback={<PageSkeleton />}>
+              {typeof children === 'function' ? children(params) : children}
+            </Suspense>
           </Padding>
           <Footer />
         </>)
@@ -227,7 +230,9 @@ function RoutePyq({ path, children }:
   return (
     <Route path={path}>
       {params => (
-        <>{typeof children === 'function' ? children(params) : children}</>
+        <Suspense fallback={<PageSkeleton />}>
+          {typeof children === 'function' ? children(params) : children}
+        </Suspense>
       )}
     </Route>
   )

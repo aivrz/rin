@@ -20,14 +20,28 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 export const endpoint = process.env.API_URL || 'http://localhost:3001'
 export const oauth_url = process.env.API_URL + '/user/github'
 export const client = treaty<Server>(endpoint)
-// 预连接 API 域名，加速首屏数据请求（七牛 CDN 域名由构建期 ASSET_BASE 决定，资源引用已内联无需额外 preconnect）
-try {
-  const l = document.createElement('link');
-  l.rel = 'preconnect';
-  l.href = new URL(endpoint).origin;
-  l.crossOrigin = 'anonymous';
-  document.head.appendChild(l);
-} catch { }
+// 预连接关键域名，加速首屏数据/资源/图片请求：
+// - API 域（同源 /api）
+// - 七牛 CDN（构建期 ASSET_BASE，JS/CSS/字体走镜像回源）
+// - R2 图床（S3_ACCESS_HOST，文章配图首请求省一次 RTT）
+function addPreconnect(href?: string, crossOrigin = false) {
+  if (!href) return;
+  try {
+    const origin = new URL(href).origin;
+    const pc = document.createElement('link');
+    pc.rel = 'preconnect';
+    pc.href = origin;
+    if (crossOrigin) pc.crossOrigin = 'anonymous';
+    document.head.appendChild(pc);
+    const dns = document.createElement('link');
+    dns.rel = 'dns-prefetch';
+    dns.href = origin;
+    document.head.appendChild(dns);
+  } catch { }
+}
+addPreconnect(new URL(endpoint).origin, true);
+addPreconnect(process.env.ASSET_BASE);
+addPreconnect(process.env.S3_ACCESS_HOST);
 listenSystemMode()
 i18n
   .use(LanguageDetector)

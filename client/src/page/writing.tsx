@@ -6,21 +6,22 @@ import { editor } from 'monaco-editor';
 import { Calendar } from 'primereact/calendar';
 import 'primereact/resources/primereact.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { Helmet } from "react-helmet";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import Loading from 'react-loading';
 import { ShowAlertType, useAlert } from '../components/dialog';
 import { Checkbox, Input } from "../components/input";
-import { Markdown } from "../components/markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { Cache, useCache } from '../utils/cache';
 import { siteName } from "../utils/constants";
 import { useColorMode } from "../utils/darkModeUtils";
-import mermaid from 'mermaid';
+
+// 正文渲染（katex/代码高亮/mermaid 等重依赖）单独成块，避免撑大 WritingPage 入口 chunk
+const Markdown = lazy(() => import("../components/markdown").then(m => ({ default: m.Markdown })));
 
 async function publish({
   title,
@@ -416,23 +417,26 @@ export function WritingPage({ id }: { id?: number }) {
   }, []);
   const debouncedUpdate = useCallback(
     _.debounce(() => {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: "default",
-      });
-      mermaid.run({
-        suppressErrors: true,
-        nodes: document.querySelectorAll("pre.mermaid_default")
-      }).then(()=>{
+      // mermaid 体积较大，按需动态加载，不进入 WritingPage 入口 chunk
+      import("mermaid").then(({ default: mermaid }) => {
         mermaid.initialize({
           startOnLoad: false,
-          theme: "dark",
+          theme: "default",
         });
         mermaid.run({
           suppressErrors: true,
-          nodes: document.querySelectorAll("pre.mermaid_dark")
+          nodes: document.querySelectorAll("pre.mermaid_default")
+        }).then(() => {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: "dark",
+          });
+          mermaid.run({
+            suppressErrors: true,
+            nodes: document.querySelectorAll("pre.mermaid_dark")
+          });
         });
-      })
+      });
     }, 100),
     []
   );
@@ -605,7 +609,9 @@ export function WritingPage({ id }: { id?: number }) {
                 <div
                   className={"px-4 h-[600px] overflow-y-scroll " + (preview !== 'edit' ? "" : "hidden")}
                 >
-                  <Markdown content={content ? content : "> No content now. Write on the left side."} />
+                  <Suspense fallback={<div className="pyq-skeleton-block" />}>
+                    <Markdown content={content ? content : "> No content now. Write on the left side."} />
+                  </Suspense>
                 </div>
               </div>
             </div>

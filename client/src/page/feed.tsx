@@ -1,11 +1,10 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import ReactModal from "react-modal";
 import { Link, useLocation } from "wouter";
 import { useAlert, useConfirm } from "../components/dialog";
 import { HashTag } from "../components/hashtag";
 import { Waiting } from "../components/loading";
-import { Markdown } from "../components/markdown";
 import { FeedCard } from "../components/feed_card";
 import { CommentItem } from "../components/comment_item";
 import { PyqCoverHeader } from "../components/pyq_cover";
@@ -21,7 +20,10 @@ import { Button } from "../components/button";
 import { Tips } from "../components/tips";
 import { useLoginModal } from "../hooks/useLoginModal";
 import { useLike } from "../hooks/useLike";
-import mermaid from "mermaid";
+import { consumePrefetchedFeed } from "../hooks/usePrefetch";
+
+// 正文渲染（katex/代码高亮/mermaid 等重依赖）单独成块，避免撑大 FeedPage 入口 chunk。
+const Markdown = lazy(() => import("../components/markdown").then(m => ({ default: m.Markdown })));
 
 type Feed = {
   id: number;
@@ -123,47 +125,55 @@ export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, c
     setFeed(undefined);
     setError(undefined);
     setHeadImage(undefined);
-    client
+    // 复用 hover 阶段已预取的数据（如有），避免重复请求；否则正常发起
+    const req = consumePrefetchedFeed(id) ?? client
       .feed({ id })
       .get({
         headers: headersWithAuth(),
-      })
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.value as string);
-        } else if (data && typeof data !== "string") {
-          setTimeout(() => {
-            setFeed(data);
-            setTop(data.top);
-            const img_reg = /!\[.*?\]\((.*?)\)/;
-            const img_match = img_reg.exec(data.content);
-            if (img_match) {
-              setHeadImage(img_match[1]);
-            }
-            clean(id);
-          }, 0);
-        }
       });
+    req.then(({ data, error }) => {
+      if (error) {
+        setError(error.value as string);
+      } else if (data && typeof data !== "string") {
+        setTimeout(() => {
+          setFeed(data);
+          setTop(data.top);
+          const img_reg = /!\[.*?\]\((.*?)\)/;
+          const img_match = img_reg.exec(data.content);
+          if (img_match) {
+            setHeadImage(img_match[1]);
+          }
+          clean(id);
+        }, 0);
+      }
+    });
     ref.current = id;
   }, [id]);
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: "default",
-    });
-    mermaid.run({
-      suppressErrors: true,
-      nodes: document.querySelectorAll("pre.mermaid_default")
-    }).then(() => {
+    // mermaid 体积较大，按需动态加载，不进入 FeedPage 入口 chunk
+    let cancelled = false;
+    import("mermaid").then(({ default: mermaid }) => {
+      if (cancelled) return;
       mermaid.initialize({
         startOnLoad: false,
-        theme: "dark",
+        theme: "default",
       });
       mermaid.run({
         suppressErrors: true,
-        nodes: document.querySelectorAll("pre.mermaid_dark")
+        nodes: document.querySelectorAll("pre.mermaid_default")
+      }).then(() => {
+        if (cancelled) return;
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "dark",
+        });
+        mermaid.run({
+          suppressErrors: true,
+          nodes: document.querySelectorAll("pre.mermaid_dark")
+        });
       });
-    })
+    });
+    return () => { cancelled = true; };
   }, [feed]);
 
   return (
@@ -237,7 +247,9 @@ export function FeedPage({ id, clean }: { id: string, _TOC: () => JSX.Element, c
                   ? <PyqMusicCard key={i} url={m.url} title={feed.title || undefined} />
                   : <PyqVideoEmbed key={i} url={m.url} />
               ))}
-              <Markdown content={media.content} />
+              <Suspense fallback={<div className="pyq-skeleton-block" />}>
+                <Markdown content={media.content} />
+              </Suspense>
               {feed.hashtags.length > 0 && (
                 <div className="flex flex-row flex-wrap gap-2" style={{ marginTop: 14 }}>
                   {feed.hashtags.map(({ name }, index) => (

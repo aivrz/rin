@@ -2556,3 +2556,59 @@ body.dark-theme .pyq-zanp,
     font-size: 13px;
     color: var(--texths);
 }
+
+/* ============ 顶栏路由切换进度条 ============ */
+.rin-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    z-index: 999;
+    background: linear-gradient(90deg, var(--theme), #5fd39b);
+    box-shadow: 0 0 8px var(--theme);
+    transition: width 0.2s ease, opacity 0.25s ease;
+    opacity: 0.95;
+}
+
+/* ============ 路由级骨架屏（替换整页「加载中…」） ============ */
+.pyq-skeleton-card {
+    padding: 20px;
+    margin-bottom: 14px;
+}
+
+.pyq-skeleton-line,
+.pyq-skeleton-block {
+    height: 14px;
+    border-radius: 6px;
+    margin-top: 12px;
+    background: linear-gradient(90deg,
+            var(--bganh) 25%,
+            rgba(0, 0, 0, 0.08) 37%,
+            var(--bganh) 63%);
+    background-size: 400% 100%;
+    animation: pyq-skeleton-shimmer 1.4s ease infinite;
+}
+
+.pyq-skeleton-block {
+    height: 160px;
+    border-radius: 12px;
+}
+
+[data-color-mode="dark"] .pyq-skeleton-line,
+[data-color-mode="dark"] .pyq-skeleton-block {
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0.06) 25%,
+            rgba(255, 255, 255, 0.14) 37%,
+            rgba(255, 255, 255, 0.06) 63%);
+    background-size: 400% 100%;
+}
+
+@keyframes pyq-skeleton-shimmer {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
+}
