@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 // feed（文章详情）静态引入 components/markdown 与 mermaid（约 2.8MB），
 // 而首页列表 feeds.tsx 并不需要，故一并切出首屏。
 const WritingPage = lazy(() => import('./page/writing').then(m => ({ default: m.WritingPage })))
+const WritingListPage = lazy(() => import('./page/writing').then(m => ({ default: m.WritingListPage })))
 const Settings = lazy(() => import('./page/settings').then(m => ({ default: m.Settings })))
 const FriendsPage = lazy(() => import('./page/friends').then(m => ({ default: m.FriendsPage })))
 const FeedPage = lazy(() => import('./page/feed').then(m => ({ default: m.FeedPage })))
@@ -118,6 +119,10 @@ function App() {
 
 
             <AdminRoute path="/writing" paddingClassName='mx-4'>
+              <WritingListPage />
+            </AdminRoute>
+
+            <AdminRoute path="/writing/new" paddingClassName='mx-4'>
               <WritingPage key="new" />
             </AdminRoute>
 

@@ -130,38 +130,47 @@ async function update({
   }
 }
 
-// 后台文章管理列表：复用 FeedService 的列表/置顶/删除接口
+// 后台文章管理列表：复用 FeedService 的列表/置顶/删除接口，分页（加载更多）避免一次性拉满 300×3 条
 function ManageList() {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const fetchAll = async () => {
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const LIMIT = 20;
+  const loadPage = async (p: number, replace: boolean) => {
     setLoading(true);
     const types = ['normal', 'draft', 'unlisted'];
     const results = await Promise.all(
       types.map((tp) =>
         client.feed.index.get({
-          query: { page: 1, limit: 300, type: tp },
+          query: { page: p, limit: LIMIT, type: tp },
           headers: headersWithAuth(),
         })
       )
     );
     const merged: any[] = [];
+    let someFull = false;
     for (const { data } of results) {
-      if (data && typeof data !== "string") merged.push(...(data.data || []));
+      if (data && typeof data !== "string") {
+        const arr = data.data || [];
+        merged.push(...arr);
+        if (arr.length === LIMIT) someFull = true;
+      }
     }
     const map = new Map<number, any>();
-    for (const f of merged) map.set(f.id, f);
+    for (const f of [...(replace ? [] : items), ...merged]) map.set(f.id, f);
     setItems(
       [...map.values()].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
     );
+    setHasMore(someFull);
     setLoading(false);
   };
   useEffect(() => {
-    fetchAll();
+    loadPage(1, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function toggleTop(f: any) {
@@ -193,11 +202,16 @@ function ManageList() {
     <div className="bg-w rounded-2xl shadow-xl shadow-light p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="font-semibold text-lg">{t("manage.title") || "文章管理"}</span>
-        <button onClick={fetchAll} className="text-theme text-sm flex items-center gap-1">
-          <i className="ri-refresh-line" /> 刷新
-        </button>
+        <div className="flex items-center gap-3">
+          <Link href="/writing/new" className="text-theme text-sm flex items-center gap-1">
+            <i className="ri-add-line" /> {t("new") || "新建文章"}
+          </Link>
+          <button onClick={() => { setPage(1); loadPage(1, true); }} className="text-theme text-sm flex items-center gap-1">
+            <i className="ri-refresh-line" /> 刷新
+          </button>
+        </div>
       </div>
-      {loading ? (
+      {loading && page === 1 ? (
         <div className="text-neutral-500 text-sm py-4">加载中…</div>
       ) : (
         <div className="flex flex-col">
@@ -244,6 +258,15 @@ function ManageList() {
             <div className="text-neutral-500 text-sm py-4">暂无文章</div>
           )}
         </div>
+      )}
+      {hasMore && (
+        <button
+          onClick={() => { const np = page + 1; setPage(np); loadPage(np, false); }}
+          disabled={loading}
+          className="mt-3 w-full text-center text-theme text-sm py-2 rounded-lg bg-secondary disabled:opacity-50"
+        >
+          {loading ? "加载中…" : (t("load_more") || "加载更多")}
+        </button>
       )}
     </div>
   );
@@ -415,6 +438,9 @@ export function WritingPage({ id }: { id?: number }) {
         });
     }
   }, []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const debouncedUpdate = useCallback(
     _.debounce(() => {
       // mermaid 体积较大，按需动态加载，不进入 WritingPage 入口 chunk
@@ -519,137 +545,133 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:type" content="article" />
         <meta property="og:url" content={document.URL} />
       </Helmet>
-      <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
-        <div className="col-span-2 pb-8">
-          <div className="bg-w rounded-2xl shadow-xl shadow-light overflow-hidden">
-            {MetaInput({ className: "p-4 border-b border-neutral-200 dark:border-neutral-700" })}
-            <EditorToolbar editorRef={editorRef} />
-            <div className="flex flex-col mx-4 my-2 gap-2">
-              <div className="flex flex-row space-x-2 items-center">
-                <button className={`${preview === 'edit' ? "text-theme" : ""}`} onClick={() => setPreview('edit')}> {t("edit")} </button>
-                <button className={`${preview === 'preview' ? "text-theme" : ""}`} onClick={() => setPreview('preview')}> {t("preview")} </button>
-                <button className={`${preview === 'comparison' ? "text-theme" : ""}`} onClick={() => setPreview('comparison')}> {t("comparison")} </button>
-                <div className="flex-grow" />
-                {savedAt && <span className="text-xs text-neutral-400 hidden sm:inline">已保存草稿 · {savedAt.toLocaleTimeString()}</span>}
-                {uploading &&
-                  <div className="flex flex-row space-x-2 items-center">
-                    <Loading type="spin" color="#FC466B" height={16} width={16} />
-                    <span className="text-sm text-neutral-500">{t('uploading')}</span>
-                  </div>
-                }
-              </div>
-              <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
-                <div className={"flex flex-col " + (preview === 'preview' ? "hidden" : "")}>
-                  <div className="flex flex-row justify-start mb-2 items-center gap-2">
-                    <UploadImageButton />
-                    <input
-                      value={imageLink}
-                      onChange={(e) => setImageLink(e.target.value)}
-                      placeholder="粘贴图片链接"
-                      className="flex-1 min-w-0 rounded-lg px-3 py-1.5 text-sm outline-none bg-secondary t-primary"
-                    />
-                    <button onClick={() => { insertImageLink(imageLink); setImageLink(""); }}
-                      className="rounded-full px-3 py-1.5 text-xs text-white cursor-pointer"
-                      style={{ background: 'linear-gradient(90deg,#FC466B,#3F5EFB)' }}>
-                      插入
-                    </button>
-                  </div>
-                  <div
-                    className={"relative rounded-xl transition-colors " + (dragOver ? "ring-2 ring-[var(--theme)] bg-secondary/40" : "ring-1 ring-transparent")}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      const editor = editorRef.current;
-                      if (!editor) return;
-                      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-                        const file = e.dataTransfer.files[i];
-                        const url = await upload(file);
-                        if (!url) continue;
-                        const selection = editor.getSelection();
-                        if (!selection) continue;
-                        editor.executeEdits(undefined, [{
-                          range: selection,
-                          text: `![${file.name}](${url})\n`,
-                        }]);
-                      }
-                    }}
-                    onPaste={handlePaste}
-                  >
-                    <Editor
-                      onMount={(editor, _) => {
-                        editorRef.current = editor
-                      }}
-                      height="600px"
-                      defaultLanguage="markdown"
-                      className=""
-                      value={content}
-                      onChange={(data, _) => {
-                        cache.set("content", data ?? "");
-                        setContent(data ?? "");
-                        markSaved();
-                      }}
-                      theme={colorMode === "dark" ? "vs-dark" : "light"}
-                      options={{
-                        wordWrap: "on",
-                        fontSize: 14,
-                        fontFamily: "Fira Code",
-                        lineNumbers: "off",
-                        dragAndDrop: true,
-                        pasteAs: { enabled: false }
-                      }}
-                    />
-                    {dragOver &&
-                      <div className="absolute inset-0 flex items-center justify-center text-theme bg-white/70 dark:bg-black/40 rounded-xl pointer-events-none">
-                        <span className="flex items-center gap-2"><i className="ri-image-add-line" /> 松开以插入图片</span>
-                      </div>}
-                  </div>
+      <div className="t-primary mt-2">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <Link href="/writing" className="text-theme text-sm flex items-center gap-1">
+            <i className="ri-arrow-left-line" /> 返回列表
+          </Link>
+          <button onClick={publishButton} className="bg-theme text-white px-5 py-2 rounded-full shadow-xl shadow-light flex items-center gap-2">
+            {publishing && <Loading type="spin" height={16} width={16} />}
+            <span>{t('publish.title')}</span>
+          </button>
+        </div>
+        <div className="bg-w rounded-2xl shadow-xl shadow-light overflow-hidden">
+          {MetaInput({ className: "p-4 border-b border-neutral-200 dark:border-neutral-700" })}
+          <EditorToolbar editorRef={editorRef} />
+          <div className="flex flex-col mx-4 my-2 gap-2">
+            <div className="flex flex-row space-x-2 items-center">
+              <button className={`${preview === 'edit' ? "text-theme" : ""}`} onClick={() => setPreview('edit')}> {t("edit")} </button>
+              <button className={`${preview === 'preview' ? "text-theme" : ""}`} onClick={() => setPreview('preview')}> {t("preview")} </button>
+              <button className={`${preview === 'comparison' ? "text-theme" : ""}`} onClick={() => setPreview('comparison')}> {t("comparison")} </button>
+              <div className="flex-grow" />
+              {savedAt && <span className="text-xs text-neutral-400 hidden sm:inline">已保存草稿 · {savedAt.toLocaleTimeString()}</span>}
+              {uploading &&
+                <div className="flex flex-row space-x-2 items-center">
+                  <Loading type="spin" color="#FC466B" height={16} width={16} />
+                  <span className="text-sm text-neutral-500">{t('uploading')}</span>
+                </div>
+              }
+            </div>
+            <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
+              <div className={"flex flex-col " + (preview === 'preview' ? "hidden" : "")}>
+                <div className="flex flex-row justify-start mb-2 items-center gap-2">
+                  <UploadImageButton />
+                  <input
+                    value={imageLink}
+                    onChange={(e) => setImageLink(e.target.value)}
+                    placeholder="粘贴图片链接"
+                    className="flex-1 min-w-0 rounded-lg px-3 py-1.5 text-sm outline-none bg-secondary t-primary"
+                  />
+                  <button onClick={() => { insertImageLink(imageLink); setImageLink(""); }}
+                    className="rounded-full px-3 py-1.5 text-xs text-white cursor-pointer"
+                    style={{ background: 'linear-gradient(90deg,#FC466B,#3F5EFB)' }}>
+                    插入
+                  </button>
                 </div>
                 <div
-                  className={"px-4 h-[600px] overflow-y-scroll " + (preview !== 'edit' ? "" : "hidden")}
+                  className={"relative rounded-xl transition-colors " + (dragOver ? "ring-2 ring-[var(--theme)] bg-secondary/40" : "ring-1 ring-transparent")}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const editor = editorRef.current;
+                    if (!editor) return;
+                    for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                      const file = e.dataTransfer.files[i];
+                      const url = await upload(file);
+                      if (!url) continue;
+                      const selection = editor.getSelection();
+                      if (!selection) continue;
+                      editor.executeEdits(undefined, [{
+                        range: selection,
+                        text: `![${file.name}](${url})\n`,
+                      }]);
+                    }
+                  }}
+                  onPaste={handlePaste}
                 >
-                  <Suspense fallback={<div className="pyq-skeleton-block" />}>
-                    <Markdown content={content ? content : "> No content now. Write on the left side."} />
-                  </Suspense>
+                  <Editor
+                    onMount={(editor, _) => {
+                      editorRef.current = editor
+                    }}
+                    height="600px"
+                    defaultLanguage="markdown"
+                    className=""
+                    value={content}
+                    onChange={(data, _) => {
+                      cache.set("content", data ?? "");
+                      setContent(data ?? "");
+                      markSaved();
+                    }}
+                    theme={colorMode === "dark" ? "vs-dark" : "light"}
+                    options={{
+                      wordWrap: "on",
+                      fontSize: 14,
+                      fontFamily: "Fira Code",
+                      lineNumbers: "off",
+                      dragAndDrop: true,
+                      pasteAs: { enabled: false }
+                    }}
+                  />
+                  {dragOver &&
+                    <div className="absolute inset-0 flex items-center justify-center text-theme bg-white/70 dark:bg-black/40 rounded-xl pointer-events-none">
+                      <span className="flex items-center gap-2"><i className="ri-image-add-line" /> 松开以插入图片</span>
+                    </div>}
                 </div>
+              </div>
+              <div
+                className={"px-4 h-[600px] overflow-y-scroll " + (preview !== 'edit' ? "" : "hidden")}
+              >
+                <Suspense fallback={<div className="pyq-skeleton-block" />}>
+                  <Markdown content={content ? content : "> No content now. Write on the left side."} />
+                </Suspense>
               </div>
             </div>
           </div>
-          <div className="visible md:hidden flex flex-row justify-center mt-8">
-            <button
-              onClick={publishButton}
-              className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2"
-            >
-              {publishing &&
-                <Loading type="spin" height={16} width={16} />
-              }
-              <span>
-                {t('publish.title')}
-              </span>
-            </button>
-          </div>
-        </div>
-        <div className="hidden md:flex flex-col">
-          <div className="flex flex-row justify-center mt-8 md:mt-0">
-            <button
-              onClick={publishButton}
-              className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2"
-            >
-              {publishing &&
-                <Loading type="spin" height={16} width={16} />
-              }
-              <span>
-                {t('publish.title')}
-              </span>
-            </button>
-          </div>
         </div>
       </div>
-      <ManageList />
       <AlertUI />
     </>
 
+  );
+}
+
+// 文章管理列表页：与编辑页拆为独立路由。进入列表页自动滚到顶部，列表只渲染 ManageList。
+export function WritingListPage() {
+  const { t } = useTranslation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  return (
+    <>
+      <Helmet>
+        <title>{`${t('writing')} - ${process.env.NAME}`}</title>
+      </Helmet>
+      <div className="t-primary mt-2">
+        <ManageList />
+      </div>
+    </>
   );
 }
 
