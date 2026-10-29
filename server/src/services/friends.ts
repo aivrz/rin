@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import Elysia, { t } from "elysia";
 import type { DB } from "../_worker";
@@ -20,8 +20,8 @@ export function FriendService() {
         .group('/friend', (group) =>
             group.get('/', async ({ admin, uid }) => {
                 const friend_list = await (admin ? db.query.friends.findMany() : db.query.friends.findMany({ where: eq(friends.accepted, 1) }));
-                const uid_num = parseInt(uid);
-                const apply_list = await db.query.friends.findFirst({ where: eq(friends.uid, uid_num ?? null) });
+                const uid_num = uid ? parseInt(uid) : NaN;
+                const apply_list = isNaN(uid_num) ? undefined : await db.query.friends.findFirst({ where: eq(friends.uid, uid_num) });
                 const env = getEnv();
                 const cdn = await cdnHost(env);
                 const from = env.S3_ACCESS_HOST;
@@ -37,13 +37,21 @@ export function FriendService() {
                         set.status = 403;
                         return 'Friend Link Apply Disabled';
                     }
+                    if (!name || !desc || !avatar || !url) {
+                        set.status = 400;
+                        return '请填写完整的站点名称、描述、头像 URL 与链接';
+                    }
                     if (name.length > 20 || desc.length > 100 || avatar.length > 100 || url.length > 100) {
                         set.status = 400;
-                        return 'Invalid input';
+                        return '字段长度超限';
                     }
-                    if (name.length === 0 || desc.length === 0 || avatar.length === 0 || url.length === 0) {
+                    if (!/^https?:\/\//i.test(url)) {
                         set.status = 400;
-                        return 'Invalid input';
+                        return '链接需以 http:// 或 https:// 开头';
+                    }
+                    if (!/^https?:\/\//i.test(avatar)) {
+                        set.status = 400;
+                        return '头像 URL 需以 http:// 或 https:// 开头';
                     }
                     if (!uid) {
                         set.status = 401;
@@ -51,7 +59,7 @@ export function FriendService() {
                     }
                     if (!admin) {
                         const exist = await db.query.friends.findFirst({
-                            where: eq(friends.uid, uid),
+                            where: and(eq(friends.uid, uid), ne(friends.accepted, -1)),
                         });
                         if (exist) {
                             set.status = 400;
@@ -107,7 +115,24 @@ export function FriendService() {
                         return 'Permission denied';
                     }
                     if (!admin) {
-                        accepted = 0;
+                        // 普通用户编辑不重置审核状态，避免已通过友链被下线
+                        accepted = exist.accepted;
+                    }
+                    if (!name || !desc || !url) {
+                        set.status = 400;
+                        return '请填写完整的站点名称、描述与链接';
+                    }
+                    if (name.length > 20 || desc.length > 100 || (avatar && avatar.length > 100) || url.length > 100) {
+                        set.status = 400;
+                        return '字段长度超限';
+                    }
+                    if (!/^https?:\/\//i.test(url)) {
+                        set.status = 400;
+                        return '链接需以 http:// 或 https:// 开头';
+                    }
+                    if (avatar && !/^https?:\/\//i.test(avatar)) {
+                        set.status = 400;
+                        return '头像 URL 需以 http:// 或 https:// 开头';
                     }
                     function wrap(s: string | undefined) {
                         return s ? s.length === 0 ? undefined : s : undefined;

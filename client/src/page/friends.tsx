@@ -31,6 +31,15 @@ type FriendItem = {
 
 async function publish({ name, avatar, desc, url, showAlert }: { name: string, avatar: string, desc: string, url: string, showAlert: ShowAlertType }) {
     const t = i18next.t
+    if (!name) { showAlert(t('friends.name_required') || '站点名称不能为空'); return }
+    if (!desc) { showAlert(t('friends.desc_required') || '描述不能为空'); return }
+    if (!url) { showAlert(t('friends.url_required') || '链接不能为空'); return }
+    if (!/^https?:\/\//i.test(url)) { showAlert(t('friends.url_invalid') || '链接需以 http:// 或 https:// 开头'); return }
+    if (avatar) {
+        if (!/^https?:\/\//i.test(avatar)) { showAlert(t('friends.avatar_invalid') || '头像 URL 需以 http:// 或 https:// 开头'); return }
+    } else {
+        showAlert(t('friends.avatar_required') || '头像 URL 不能为空'); return
+    }
     const { error } = await client.friend.index.post({
         avatar,
         name,
@@ -62,10 +71,12 @@ export function FriendsPage() {
     const [refusedList, setRefusedList] = useState<FriendItem[]>([])
     const [friendsUnavailable, setFriendsUnavailable] = useState<FriendItem[]>([])
     const [status, setStatus] = useState<'idle' | 'loading'>('loading')
+    const [fetchError, setFetchError] = useState<string | null>(null)
     const ref = useRef(false)
     const { showAlert, AlertUI } = useAlert()
-    useEffect(() => {
-        if (ref.current) return
+    const load = useCallback(() => {
+        setStatus('loading')
+        setFetchError(null)
         client.friend.index.get({
             headers: headersWithAuth()
         }).then(({ data }) => {
@@ -84,9 +95,16 @@ export function FriendsPage() {
                     setApply(data.apply_list)
             }
             setStatus('idle')
+        }).catch((e) => {
+            setFetchError(e?.message || '加载失败')
+            setStatus('idle')
         })
-        ref.current = true
     }, [])
+    useEffect(() => {
+        if (ref.current) return
+        ref.current = true
+        load()
+    }, [load])
     function publishButton() {
         publish({ name, desc, avatar, url, showAlert })
     }
@@ -110,6 +128,13 @@ export function FriendsPage() {
                     <FriendList title={t('friends.review.waiting')} show={waitList.length > 0} friends={waitList} />
                     <FriendList title={t('friends.review.rejected')} show={refusedList.length > 0} friends={refusedList} />
                     <FriendList title={t('friends.my_apply')} show={profile?.permission !== true && apply !== undefined} friends={apply ? [apply] : []} />
+
+                    {fetchError && (
+                        <div className="pyq-card" style={{ padding: 16, textAlign: 'center', color: 'var(--texths)' }}>
+                            <div>{t('friends.load_error') || '加载失败，请稍后重试'}</div>
+                            <button onClick={load} className="pyq-btn-theme mt-2">{t('retry') || '重试'}</button>
+                        </div>
+                    )}
 
                     {profile && (profile.permission || config.get("friend_apply_enable")) &&
                         <div className="pyq-post" style={{ marginTop: 10 }}>
@@ -178,6 +203,8 @@ function Friend({ friend }: { friend: FriendItem }) {
     }, [friend.id])
 
     const updateFriend = useCallback(() => {
+        if (!/^https?:\/\//i.test(url)) { showAlert(t('friends.url_invalid') || '链接需以 http:// 或 https:// 开头'); return }
+        if (avatar && !/^https?:\/\//i.test(avatar)) { showAlert(t('friends.avatar_invalid') || '头像 URL 需以 http:// 或 https:// 开头'); return }
         client.friend({ id: friend.id }).put({
             avatar,
             name,
